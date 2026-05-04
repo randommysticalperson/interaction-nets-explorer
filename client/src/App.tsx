@@ -27,7 +27,7 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider
-        defaultTheme="light"
+        defaultTheme="light"  // Constructivist Data Instrument — off-white background
         // switchable
       >
         <TooltipProvider>
