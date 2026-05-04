@@ -2,13 +2,13 @@
  * LambdaVisualizer.tsx
  * Design: Constructivist Data Instrument
  * Colors: cobalt blue (#1565c0) = Constructor, golden yellow (#f9a825) = Duplicator, vermillion red (#c62828) = Eraser
- * Layout: Left control rail | Center SVG canvas | Right info panel
+ * Layout: Left control rail | Center SVG canvas (drag-and-drop nodes) | Right info panel
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   InteractionNet, NetNode, NetEdge, SerializedNet,
-  applyOneStep, cloneNet, serializeNet, getEdges, findActivePairs,
+  applyOneStep, cloneNet, serializeNet, findActivePairs,
   PRESETS,
 } from '@/lib/interactionNet';
 
@@ -26,20 +26,23 @@ const NODE_LABELS: Record<string, string> = {
 
 const NODE_RADIUS = 22;
 
-interface LayoutNode extends NetNode {
-  displayX: number;
-  displayY: number;
-}
+// ─── Force layout (runs once on net change, then user can drag freely) ────────
+function computeForceLayout(
+  nodes: NetNode[],
+  edges: NetEdge[],
+  width: number,
+  height: number,
+  existingPositions: Map<string, { x: number; y: number }>
+): Map<string, { x: number; y: number }> {
+  if (nodes.length === 0) return new Map();
 
-function useForceLayout(nodes: NetNode[], edges: NetEdge[], width: number, height: number) {
-  const [positions, setPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
-
-  useEffect(() => {
-    if (nodes.length === 0) { setPositions(new Map()); return; }
-
-    // Initialize positions from node data or spread evenly
-    const pos = new Map<string, { x: number; y: number; vx: number; vy: number }>();
-    nodes.forEach((n, i) => {
+  const pos = new Map<string, { x: number; y: number; vx: number; vy: number }>();
+  nodes.forEach((n, i) => {
+    // Reuse existing positions for nodes that already have them (preserves drag)
+    const existing = existingPositions.get(n.id);
+    if (existing) {
+      pos.set(n.id, { x: existing.x, y: existing.y, vx: 0, vy: 0 });
+    } else {
       const angle = (i / nodes.length) * 2 * Math.PI;
       const r = Math.min(width, height) * 0.3;
       pos.set(n.id, {
@@ -47,98 +50,107 @@ function useForceLayout(nodes: NetNode[], edges: NetEdge[], width: number, heigh
         y: n.y || height / 2 + r * Math.sin(angle),
         vx: 0, vy: 0,
       });
-    });
+    }
+  });
 
-    const REPULSION = 4000;
-    const ATTRACTION = 0.04;
-    const DAMPING = 0.85;
-    const ITERATIONS = 80;
+  const REPULSION = 4000;
+  const ATTRACTION = 0.04;
+  const DAMPING = 0.85;
+  const ITERATIONS = 80;
 
-    for (let iter = 0; iter < ITERATIONS; iter++) {
-      // Repulsion
-      const nodeArr = Array.from(pos.entries());
-      for (let i = 0; i < nodeArr.length; i++) {
-        for (let j = i + 1; j < nodeArr.length; j++) {
-          const [idA, a] = nodeArr[i];
-          const [idB, b] = nodeArr[j];
-          const dx = a.x - b.x;
-          const dy = a.y - b.y;
-          const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
-          const force = REPULSION / (dist * dist);
-          const fx = (dx / dist) * force;
-          const fy = (dy / dist) * force;
-          a.vx += fx; a.vy += fy;
-          b.vx -= fx; b.vy -= fy;
-        }
-      }
-
-      // Attraction along edges
-      for (const edge of edges) {
-        const a = pos.get(edge.from.nodeId);
-        const b = pos.get(edge.to.nodeId);
-        if (!a || !b) continue;
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
+  for (let iter = 0; iter < ITERATIONS; iter++) {
+    const nodeArr = Array.from(pos.entries());
+    for (let i = 0; i < nodeArr.length; i++) {
+      for (let j = i + 1; j < nodeArr.length; j++) {
+        const [, a] = nodeArr[i];
+        const [, b] = nodeArr[j];
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
         const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
-        const idealLen = 120;
-        const force = (dist - idealLen) * ATTRACTION;
-        a.vx += (dx / dist) * force;
-        a.vy += (dy / dist) * force;
-        b.vx -= (dx / dist) * force;
-        b.vy -= (dy / dist) * force;
-      }
-
-      // Center gravity
-      for (const [, p] of Array.from(pos.entries())) {
-        p.vx += (width / 2 - p.x) * 0.005;
-        p.vy += (height / 2 - p.y) * 0.005;
-        p.vx *= DAMPING;
-        p.vy *= DAMPING;
-        p.x += p.vx;
-        p.y += p.vy;
-        p.x = Math.max(40, Math.min(width - 40, p.x));
-        p.y = Math.max(40, Math.min(height - 40, p.y));
+        const force = REPULSION / (dist * dist);
+        a.vx += (dx / dist) * force; a.vy += (dy / dist) * force;
+        b.vx -= (dx / dist) * force; b.vy -= (dy / dist) * force;
       }
     }
-
-    const result = new Map<string, { x: number; y: number }>();
-    for (const [id, p] of Array.from(pos.entries())) {
-      result.set(id, { x: p.x, y: p.y });
+    for (const edge of edges) {
+      const a = pos.get(edge.from.nodeId);
+      const b = pos.get(edge.to.nodeId);
+      if (!a || !b) continue;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
+      const force = (dist - 120) * ATTRACTION;
+      a.vx += (dx / dist) * force; a.vy += (dy / dist) * force;
+      b.vx -= (dx / dist) * force; b.vy -= (dy / dist) * force;
     }
-    setPositions(result);
-  }, [nodes.map(n => n.id).join(','), edges.length, width, height]);
+    for (const [, p] of Array.from(pos.entries())) {
+      p.vx += (width / 2 - p.x) * 0.005;
+      p.vy += (height / 2 - p.y) * 0.005;
+      p.vx *= DAMPING; p.vy *= DAMPING;
+      p.x += p.vx; p.y += p.vy;
+      p.x = Math.max(40, Math.min(width - 40, p.x));
+      p.y = Math.max(40, Math.min(height - 40, p.y));
+    }
+  }
 
-  return positions;
+  const result = new Map<string, { x: number; y: number }>();
+  for (const [id, p] of Array.from(pos.entries())) result.set(id, { x: p.x, y: p.y });
+  return result;
 }
 
-function NodeShape({ node, pos, isActive }: { node: NetNode; pos: { x: number; y: number }; isActive: boolean }) {
+// ─── Node shape renderer ──────────────────────────────────────────────────────
+function NodeShape({
+  node, pos, isActive, isDragging,
+  onMouseDown, onTouchStart,
+}: {
+  node: NetNode;
+  pos: { x: number; y: number };
+  isActive: boolean;
+  isDragging: boolean;
+  onMouseDown: (e: React.MouseEvent, id: string) => void;
+  onTouchStart: (e: React.TouchEvent, id: string) => void;
+}) {
   const color = NODE_COLORS[node.kind];
   const label = node.label || NODE_LABELS[node.kind];
   const { x, y } = pos;
 
-  const glowStyle = isActive ? { filter: `drop-shadow(0 0 8px ${color})` } : {};
+  const glowStyle: React.CSSProperties = {
+    filter: isDragging
+      ? `drop-shadow(0 0 12px ${color})`
+      : isActive
+      ? `drop-shadow(0 0 8px ${color})`
+      : undefined,
+    cursor: isDragging ? 'grabbing' : 'grab',
+  };
+
+  const handlers = {
+    onMouseDown: (e: React.MouseEvent) => onMouseDown(e, node.id),
+    onTouchStart: (e: React.TouchEvent) => onTouchStart(e, node.id),
+  };
 
   if (node.kind === 'eraser') {
     return (
-      <g style={glowStyle}>
-        <circle cx={x} cy={y} r={NODE_RADIUS} fill={color} stroke="#1a1a2e" strokeWidth={isActive ? 3 : 2} />
-        <text x={x} y={y + 5} textAnchor="middle" fill="white" fontSize={14} fontFamily="IBM Plex Mono, monospace" fontWeight="bold">{label}</text>
+      <g style={glowStyle} {...handlers}>
+        <circle cx={x} cy={y} r={NODE_RADIUS + 6} fill="transparent" />
+        <circle cx={x} cy={y} r={NODE_RADIUS} fill={color} stroke="#1a1a2e" strokeWidth={isDragging ? 3 : isActive ? 3 : 2} />
+        <text x={x} y={y + 5} textAnchor="middle" fill="white" fontSize={14} fontFamily="IBM Plex Mono, monospace" fontWeight="bold" style={{ pointerEvents: 'none', userSelect: 'none' }}>{label}</text>
         {isActive && <circle cx={x} cy={y} r={NODE_RADIUS + 6} fill="none" stroke={color} strokeWidth={2} strokeDasharray="4 3" opacity={0.7} />}
       </g>
     );
   }
 
   if (node.kind === 'constructor') {
-    // Triangle pointing up
     const h = NODE_RADIUS * 1.8;
     const w = NODE_RADIUS * 1.8;
     const pts = `${x},${y - h / 2} ${x - w / 2},${y + h / 2} ${x + w / 2},${y + h / 2}`;
     return (
-      <g style={glowStyle}>
-        <polygon points={pts} fill={color} stroke="#1a1a2e" strokeWidth={isActive ? 3 : 2} />
-        <text x={x} y={y + 5} textAnchor="middle" fill="white" fontSize={12} fontFamily="IBM Plex Mono, monospace" fontWeight="bold">{label}</text>
+      <g style={glowStyle} {...handlers}>
+        {/* Invisible larger hit area */}
+        <circle cx={x} cy={y} r={NODE_RADIUS + 8} fill="transparent" />
+        <polygon points={pts} fill={color} stroke="#1a1a2e" strokeWidth={isDragging ? 3 : isActive ? 3 : 2} />
+        <text x={x} y={y + 5} textAnchor="middle" fill="white" fontSize={12} fontFamily="IBM Plex Mono, monospace" fontWeight="bold" style={{ pointerEvents: 'none', userSelect: 'none' }}>{label}</text>
         {isActive && <polygon points={pts} fill="none" stroke={color} strokeWidth={2} strokeDasharray="4 3" opacity={0.7}
-          transform={`scale(1.3) translate(${x * (1 - 1/1.3)},${y * (1 - 1/1.3)})`} />}
+          transform={`scale(1.3) translate(${x * (1 - 1 / 1.3)},${y * (1 - 1 / 1.3)})`} />}
       </g>
     );
   }
@@ -147,15 +159,17 @@ function NodeShape({ node, pos, isActive }: { node: NetNode; pos: { x: number; y
   const d = NODE_RADIUS * 1.4;
   const pts = `${x},${y - d} ${x + d},${y} ${x},${y + d} ${x - d},${y}`;
   return (
-    <g style={glowStyle}>
-      <polygon points={pts} fill={color} stroke="#1a1a2e" strokeWidth={isActive ? 3 : 2} />
-      <text x={x} y={y + 5} textAnchor="middle" fill="#1a1a2e" fontSize={12} fontFamily="IBM Plex Mono, monospace" fontWeight="bold">{label}</text>
+    <g style={glowStyle} {...handlers}>
+      <circle cx={x} cy={y} r={NODE_RADIUS + 8} fill="transparent" />
+      <polygon points={pts} fill={color} stroke="#1a1a2e" strokeWidth={isDragging ? 3 : isActive ? 3 : 2} />
+      <text x={x} y={y + 5} textAnchor="middle" fill="#1a1a2e" fontSize={12} fontFamily="IBM Plex Mono, monospace" fontWeight="bold" style={{ pointerEvents: 'none', userSelect: 'none' }}>{label}</text>
       {isActive && <polygon points={pts} fill="none" stroke={color} strokeWidth={2} strokeDasharray="4 3" opacity={0.7}
-        transform={`scale(1.4) translate(${x * (1 - 1/1.4)},${y * (1 - 1/1.4)})`} />}
+        transform={`scale(1.4) translate(${x * (1 - 1 / 1.4)},${y * (1 - 1 / 1.4)})`} />}
     </g>
   );
 }
 
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function LambdaVisualizer() {
   const [presetIdx, setPresetIdx] = useState(0);
   const [net, setNet] = useState<InteractionNet>(() => PRESETS[0].build());
@@ -166,8 +180,25 @@ export default function LambdaVisualizer() {
   const [isNormalForm, setIsNormalForm] = useState(false);
   const [autoPlay, setAutoPlay] = useState(false);
   const [speed, setSpeed] = useState(600);
+
   const svgRef = useRef<SVGSVGElement>(null);
   const [svgSize, setSvgSize] = useState({ w: 560, h: 420 });
+
+  // Positions are stored separately from the net so dragging doesn't mutate net state
+  const [positions, setPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
+
+  // Drag state stored in a ref to avoid re-renders during drag
+  const dragRef = useRef<{
+    nodeId: string;
+    startMouseX: number;
+    startMouseY: number;
+    startNodeX: number;
+    startNodeY: number;
+  } | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+
+  // Track whether we need to recompute layout (net changed) vs just update positions (drag)
+  const prevNetKeyRef = useRef('');
 
   useEffect(() => {
     const obs = new ResizeObserver(entries => {
@@ -179,12 +210,115 @@ export default function LambdaVisualizer() {
     return () => obs.disconnect();
   }, []);
 
+  // Recompute layout when net nodes change (but preserve positions of surviving nodes)
   const serialized = serializeNet(net);
+  const netKey = serialized.nodes.map(n => n.id).join(',');
+
+  useEffect(() => {
+    if (netKey === prevNetKeyRef.current) return;
+    prevNetKeyRef.current = netKey;
+    const newPositions = computeForceLayout(
+      serialized.nodes,
+      serialized.edges,
+      svgSize.w,
+      svgSize.h,
+      positions
+    );
+    setPositions(newPositions);
+  }, [netKey, svgSize.w, svgSize.h]);
+
   const activePairs = findActivePairs(net);
   const activeIds = new Set(activePairs.flatMap(([a, b]) => [a.id, b.id]));
 
-  const positions = useForceLayout(serialized.nodes, serialized.edges, svgSize.w, svgSize.h);
+  // ── Drag handlers ────────────────────────────────────────────────────────────
+  const getSvgPoint = useCallback((clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: clientX, y: clientY };
+    const rect = svg.getBoundingClientRect();
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }, []);
 
+  const handleNodeMouseDown = useCallback((e: React.MouseEvent, nodeId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const pt = getSvgPoint(e.clientX, e.clientY);
+    const nodePos = positions.get(nodeId);
+    if (!nodePos) return;
+    dragRef.current = {
+      nodeId,
+      startMouseX: pt.x,
+      startMouseY: pt.y,
+      startNodeX: nodePos.x,
+      startNodeY: nodePos.y,
+    };
+    setDraggingId(nodeId);
+  }, [positions, getSvgPoint]);
+
+  const handleNodeTouchStart = useCallback((e: React.TouchEvent, nodeId: string) => {
+    e.stopPropagation();
+    const touch = e.touches[0];
+    const pt = getSvgPoint(touch.clientX, touch.clientY);
+    const nodePos = positions.get(nodeId);
+    if (!nodePos) return;
+    dragRef.current = {
+      nodeId,
+      startMouseX: pt.x,
+      startMouseY: pt.y,
+      startNodeX: nodePos.x,
+      startNodeY: nodePos.y,
+    };
+    setDraggingId(nodeId);
+  }, [positions, getSvgPoint]);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!dragRef.current) return;
+    const pt = getSvgPoint(e.clientX, e.clientY);
+    const dx = pt.x - dragRef.current.startMouseX;
+    const dy = pt.y - dragRef.current.startMouseY;
+    const newX = Math.max(30, Math.min(svgSize.w - 30, dragRef.current.startNodeX + dx));
+    const newY = Math.max(30, Math.min(svgSize.h - 30, dragRef.current.startNodeY + dy));
+    setPositions(prev => {
+      const next = new Map(prev);
+      next.set(dragRef.current!.nodeId, { x: newX, y: newY });
+      return next;
+    });
+  }, [getSvgPoint, svgSize]);
+
+  const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (!dragRef.current) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const pt = getSvgPoint(touch.clientX, touch.clientY);
+    const dx = pt.x - dragRef.current.startMouseX;
+    const dy = pt.y - dragRef.current.startMouseY;
+    const newX = Math.max(30, Math.min(svgSize.w - 30, dragRef.current.startNodeX + dx));
+    const newY = Math.max(30, Math.min(svgSize.h - 30, dragRef.current.startNodeY + dy));
+    setPositions(prev => {
+      const next = new Map(prev);
+      next.set(dragRef.current!.nodeId, { x: newX, y: newY });
+      return next;
+    });
+  }, [getSvgPoint, svgSize]);
+
+  const handleDragEnd = useCallback(() => {
+    dragRef.current = null;
+    setDraggingId(null);
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleDragEnd);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleDragEnd);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleDragEnd);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleDragEnd);
+    };
+  }, [handleMouseMove, handleTouchMove, handleDragEnd]);
+
+  // ── Reduction controls ───────────────────────────────────────────────────────
   const doStep = useCallback(() => {
     if (isNormalForm) return;
     const clone = cloneNet(net);
@@ -201,8 +335,7 @@ export default function LambdaVisualizer() {
     setStepCount(s => s + 1);
     setLastRule(result.rule);
     setLastDesc(result.description);
-    const newPairs = findActivePairs(clone);
-    if (newPairs.length === 0) {
+    if (findActivePairs(clone).length === 0) {
       setIsNormalForm(true);
       setAutoPlay(false);
     }
@@ -211,7 +344,6 @@ export default function LambdaVisualizer() {
   const doUndo = () => {
     if (history.length === 0) return;
     const prev = history[history.length - 1];
-    // Reconstruct net from serialized
     const restored: InteractionNet = { nodes: new Map(), freeWires: [] };
     for (const n of prev.nodes) restored.nodes.set(n.id, { ...n, ports: [...n.ports] });
     setNet(restored);
@@ -224,6 +356,8 @@ export default function LambdaVisualizer() {
 
   const doReset = () => {
     setNet(PRESETS[presetIdx].build());
+    setPositions(new Map());
+    prevNetKeyRef.current = '';
     setHistory([]);
     setStepCount(0);
     setLastRule('—');
@@ -241,6 +375,8 @@ export default function LambdaVisualizer() {
   const loadPreset = (idx: number) => {
     setPresetIdx(idx);
     setNet(PRESETS[idx].build());
+    setPositions(new Map());
+    prevNetKeyRef.current = '';
     setHistory([]);
     setStepCount(0);
     setLastRule('—');
@@ -251,16 +387,13 @@ export default function LambdaVisualizer() {
 
   return (
     <div className="flex h-full gap-0" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-      {/* Left control rail */}
-      <div className="w-56 shrink-0 border-r-2 border-[#1a1a2e] bg-[#faf7f2] flex flex-col p-4 gap-4">
+      {/* ── Left control rail ── */}
+      <div className="w-56 shrink-0 border-r-2 border-[#1a1a2e] bg-[#faf7f2] flex flex-col p-4 gap-4 overflow-y-auto">
         <div>
           <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">PRESET</div>
           {PRESETS.map((p, i) => (
-            <button
-              key={p.id}
-              onClick={() => loadPreset(i)}
-              className={`w-full text-left text-xs px-2 py-2 mb-1 border transition-colors ${presetIdx === i ? 'bg-[#1565c0] text-white border-[#1565c0]' : 'bg-white text-[#1a1a2e] border-[#1a1a2e] hover:bg-[#e8f0fe]'}`}
-            >
+            <button key={p.id} onClick={() => loadPreset(i)}
+              className={`w-full text-left text-xs px-2 py-2 mb-1 border transition-colors ${presetIdx === i ? 'bg-[#1565c0] text-white border-[#1565c0]' : 'bg-white text-[#1a1a2e] border-[#1a1a2e] hover:bg-[#e8f0fe]'}`}>
               {p.label}
             </button>
           ))}
@@ -304,20 +437,31 @@ export default function LambdaVisualizer() {
             <div className="w-4 h-4 rotate-45" style={{ background: '#f9a825' }} />
             <span className="text-xs text-[#1a1a2e]">δ Duplicator</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-3">
             <div className="w-4 h-4 rounded-full" style={{ background: '#c62828' }} />
             <span className="text-xs text-[#1a1a2e]">ε Eraser</span>
+          </div>
+          <div className="text-xs text-[#888] leading-relaxed border-t border-[#e0ddd8] pt-2">
+            <span className="font-bold text-[#1a1a2e]">Drag</span> any node to reposition it on the canvas.
           </div>
         </div>
       </div>
 
-      {/* Center canvas */}
-      <div className="flex-1 relative bg-[#faf7f2] overflow-hidden">
+      {/* ── Center canvas ── */}
+      <div className="flex-1 relative bg-[#faf7f2] overflow-hidden select-none">
         {/* Step counter */}
-        <div className="absolute top-3 left-4 z-10" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+        <div className="absolute top-3 left-4 z-10 pointer-events-none" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
           <span className="text-6xl text-[#1a1a2e] leading-none">{String(stepCount).padStart(3, '0')}</span>
           <span className="text-xs text-[#888] ml-2 font-mono uppercase tracking-wider">STEPS</span>
         </div>
+
+        {/* Drag hint */}
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+          <span className="text-xs text-[#bbb] uppercase tracking-widest" style={{ fontFamily: 'IBM Plex Mono' }}>
+            {draggingId ? '⠿ DRAGGING' : '⠿ DRAG NODES TO REARRANGE'}
+          </span>
+        </div>
+
         {isNormalForm && (
           <div className="absolute top-3 right-4 z-10 bg-[#2e7d32] text-white text-xs px-3 py-1 font-bold uppercase tracking-widest">
             NORMAL FORM
@@ -329,7 +473,13 @@ export default function LambdaVisualizer() {
           </div>
         )}
 
-        <svg ref={svgRef} width="100%" height="100%" className="absolute inset-0">
+        <svg
+          ref={svgRef}
+          width="100%"
+          height="100%"
+          className="absolute inset-0"
+          style={{ cursor: draggingId ? 'grabbing' : 'default' }}
+        >
           <defs>
             <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
               <polygon points="0 0, 8 3, 0 6" fill="#1a1a2e" opacity="0.6" />
@@ -339,11 +489,11 @@ export default function LambdaVisualizer() {
             </marker>
           </defs>
 
-          {/* Diagonal decorative lines (constructivist) */}
+          {/* Decorative constructivist lines */}
           <line x1="0" y1={svgSize.h * 0.15} x2={svgSize.w * 0.08} y2="0" stroke="#e0ddd8" strokeWidth="1" />
           <line x1={svgSize.w * 0.92} y1={svgSize.h} x2={svgSize.w} y2={svgSize.h * 0.85} stroke="#e0ddd8" strokeWidth="1" />
 
-          {/* Edges */}
+          {/* Edges — rendered below nodes */}
           {serialized.edges.map((edge, i) => {
             const from = positions.get(edge.from.nodeId);
             const to = positions.get(edge.to.nodeId);
@@ -364,28 +514,37 @@ export default function LambdaVisualizer() {
                 opacity={opacity}
                 markerEnd={isActivePairEdge ? 'url(#arrowhead-active)' : 'url(#arrowhead)'}
                 strokeDasharray={isActivePairEdge ? '6 3' : undefined}
+                style={{ pointerEvents: 'none' }}
               />
             );
           })}
 
-          {/* Nodes */}
+          {/* Nodes — draggable */}
           {serialized.nodes.map(node => {
             const pos = positions.get(node.id);
             if (!pos) return null;
             return (
-              <NodeShape key={node.id} node={node} pos={pos} isActive={activeIds.has(node.id)} />
+              <NodeShape
+                key={node.id}
+                node={node}
+                pos={pos}
+                isActive={activeIds.has(node.id)}
+                isDragging={draggingId === node.id}
+                onMouseDown={handleNodeMouseDown}
+                onTouchStart={handleNodeTouchStart}
+              />
             );
           })}
 
           {/* Node count */}
           <text x={svgSize.w - 10} y={svgSize.h - 10} textAnchor="end" fontSize={10}
-            fill="#aaa" fontFamily="IBM Plex Mono, monospace">
+            fill="#aaa" fontFamily="IBM Plex Mono, monospace" style={{ pointerEvents: 'none' }}>
             {serialized.nodes.length} nodes · {serialized.edges.length} edges
           </text>
         </svg>
       </div>
 
-      {/* Right info panel */}
+      {/* ── Right info panel ── */}
       <div className="w-52 shrink-0 border-l-2 border-[#1a1a2e] bg-[#faf7f2] flex flex-col p-4 gap-4 overflow-y-auto">
         <div>
           <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">LAST RULE</div>
