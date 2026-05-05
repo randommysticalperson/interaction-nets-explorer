@@ -255,12 +255,7 @@ export default function LambdaVisualizer() {
     prevNodeIdsRef.current = currentIds;
     setNewNodeIds(newIds);
 
-    // Clear new node markers after animation completes
-    if (newIds.size > 0) {
-      const t = setTimeout(() => setNewNodeIds(new Set()), 400);
-      return () => clearTimeout(t);
-    }
-
+    // Always compute layout — new nodes need positions too
     const newPositions = computeForceLayout(
       serialized.nodes,
       serialized.edges,
@@ -269,6 +264,12 @@ export default function LambdaVisualizer() {
       positions
     );
     setPositions(newPositions);
+
+    // Clear new node animation markers after transition completes
+    if (newIds.size > 0) {
+      const t = setTimeout(() => setNewNodeIds(new Set()), 400);
+      return () => clearTimeout(t);
+    }
   }, [netKey, svgSize.w, svgSize.h]);
 
 
