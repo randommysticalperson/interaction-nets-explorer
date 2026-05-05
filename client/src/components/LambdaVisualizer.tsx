@@ -3,6 +3,12 @@
  * Design: Constructivist Data Instrument
  * Colors: cobalt blue (#1565c0) = Constructor, golden yellow (#f9a825) = Duplicator, vermillion red (#c62828) = Eraser
  * Layout: Left control rail | Center SVG canvas (drag-and-drop nodes) | Right info panel
+ *
+ * Features:
+ *  - Custom lambda term input with parser + compiler
+ *  - Animated node transitions (CSS transitions on SVG positions)
+ *  - PNG export of the current canvas
+ *  - Drag-and-drop node repositioning
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -11,6 +17,7 @@ import {
   applyOneStep, cloneNet, serializeNet, findActivePairs,
   PRESETS,
 } from '@/lib/interactionNet';
+import { parseLambda, compileLambda } from '@/lib/lambdaParser';
 
 const NODE_COLORS: Record<string, string> = {
   constructor: '#1565c0',
@@ -26,7 +33,7 @@ const NODE_LABELS: Record<string, string> = {
 
 const NODE_RADIUS = 22;
 
-// ─── Force layout (runs once on net change, then user can drag freely) ────────
+// ─── Force layout ─────────────────────────────────────────────────────────────
 function computeForceLayout(
   nodes: NetNode[],
   edges: NetEdge[],
@@ -38,7 +45,6 @@ function computeForceLayout(
 
   const pos = new Map<string, { x: number; y: number; vx: number; vy: number }>();
   nodes.forEach((n, i) => {
-    // Reuse existing positions for nodes that already have them (preserves drag)
     const existing = existingPositions.get(n.id);
     if (existing) {
       pos.set(n.id, { x: existing.x, y: existing.y, vx: 0, vy: 0 });
@@ -98,21 +104,35 @@ function computeForceLayout(
   return result;
 }
 
-// ─── Node shape renderer ──────────────────────────────────────────────────────
+// ─── Animated node shape ──────────────────────────────────────────────────────
 function NodeShape({
-  node, pos, isActive, isDragging,
+  node, pos, isActive, isDragging, isNew,
   onMouseDown, onTouchStart,
 }: {
   node: NetNode;
   pos: { x: number; y: number };
   isActive: boolean;
   isDragging: boolean;
+  isNew: boolean;
   onMouseDown: (e: React.MouseEvent, id: string) => void;
   onTouchStart: (e: React.TouchEvent, id: string) => void;
 }) {
   const color = NODE_COLORS[node.kind];
   const label = node.label || NODE_LABELS[node.kind];
   const { x, y } = pos;
+
+  // Animate scale-in for new nodes
+  const [scale, setScale] = useState(isNew ? 0.1 : 1);
+  const [opacity, setOpacity] = useState(isNew ? 0 : 1);
+  useEffect(() => {
+    if (isNew) {
+      const t = requestAnimationFrame(() => {
+        setScale(1);
+        setOpacity(1);
+      });
+      return () => cancelAnimationFrame(t);
+    }
+  }, [isNew]);
 
   const glowStyle: React.CSSProperties = {
     filter: isDragging
@@ -121,6 +141,10 @@ function NodeShape({
       ? `drop-shadow(0 0 8px ${color})`
       : undefined,
     cursor: isDragging ? 'grabbing' : 'grab',
+    transform: `scale(${scale})`,
+    transformOrigin: `${x}px ${y}px`,
+    opacity,
+    transition: isNew ? 'transform 0.25s cubic-bezier(0.34,1.56,0.64,1), opacity 0.2s ease' : undefined,
   };
 
   const handlers = {
@@ -145,7 +169,6 @@ function NodeShape({
     const pts = `${x},${y - h / 2} ${x - w / 2},${y + h / 2} ${x + w / 2},${y + h / 2}`;
     return (
       <g style={glowStyle} {...handlers}>
-        {/* Invisible larger hit area */}
         <circle cx={x} cy={y} r={NODE_RADIUS + 8} fill="transparent" />
         <polygon points={pts} fill={color} stroke="#1a1a2e" strokeWidth={isDragging ? 3 : isActive ? 3 : 2} />
         <text x={x} y={y + 5} textAnchor="middle" fill="white" fontSize={12} fontFamily="IBM Plex Mono, monospace" fontWeight="bold" style={{ pointerEvents: 'none', userSelect: 'none' }}>{label}</text>
@@ -181,13 +204,20 @@ export default function LambdaVisualizer() {
   const [autoPlay, setAutoPlay] = useState(false);
   const [speed, setSpeed] = useState(600);
 
+  // Custom lambda input
+  const [customInput, setCustomInput] = useState('');
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [showCustom, setShowCustom] = useState(false);
+
   const svgRef = useRef<SVGSVGElement>(null);
   const [svgSize, setSvgSize] = useState({ w: 560, h: 420 });
 
-  // Positions are stored separately from the net so dragging doesn't mutate net state
   const [positions, setPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
 
-  // Drag state stored in a ref to avoid re-renders during drag
+  // Track new node IDs for entrance animation
+  const [newNodeIds, setNewNodeIds] = useState<Set<string>>(new Set());
+  const prevNodeIdsRef = useRef<Set<string>>(new Set());
+
   const dragRef = useRef<{
     nodeId: string;
     startMouseX: number;
@@ -197,7 +227,6 @@ export default function LambdaVisualizer() {
   } | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
-  // Track whether we need to recompute layout (net changed) vs just update positions (drag)
   const prevNetKeyRef = useRef('');
 
   useEffect(() => {
@@ -210,13 +239,28 @@ export default function LambdaVisualizer() {
     return () => obs.disconnect();
   }, []);
 
-  // Recompute layout when net nodes change (but preserve positions of surviving nodes)
   const serialized = serializeNet(net);
   const netKey = serialized.nodes.map(n => n.id).join(',');
 
   useEffect(() => {
     if (netKey === prevNetKeyRef.current) return;
     prevNetKeyRef.current = netKey;
+
+    // Detect new nodes for entrance animation
+    const currentIds = new Set(serialized.nodes.map(n => n.id));
+    const newIds = new Set<string>();
+    currentIds.forEach(id => {
+      if (!prevNodeIdsRef.current.has(id)) newIds.add(id);
+    });
+    prevNodeIdsRef.current = currentIds;
+    setNewNodeIds(newIds);
+
+    // Clear new node markers after animation completes
+    if (newIds.size > 0) {
+      const t = setTimeout(() => setNewNodeIds(new Set()), 400);
+      return () => clearTimeout(t);
+    }
+
     const newPositions = computeForceLayout(
       serialized.nodes,
       serialized.edges,
@@ -227,10 +271,23 @@ export default function LambdaVisualizer() {
     setPositions(newPositions);
   }, [netKey, svgSize.w, svgSize.h]);
 
+  // Recompute layout when net or size changes
+  useEffect(() => {
+    const newPositions = computeForceLayout(
+      serialized.nodes,
+      serialized.edges,
+      svgSize.w,
+      svgSize.h,
+      positions
+    );
+    setPositions(newPositions);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [netKey, svgSize.w, svgSize.h]);
+
   const activePairs = findActivePairs(net);
   const activeIds = new Set(activePairs.flatMap(([a, b]) => [a.id, b.id]));
 
-  // ── Drag handlers ────────────────────────────────────────────────────────────
+  // ── Drag handlers ─────────────────────────────────────────────────────────────
   const getSvgPoint = useCallback((clientX: number, clientY: number) => {
     const svg = svgRef.current;
     if (!svg) return { x: clientX, y: clientY };
@@ -244,13 +301,7 @@ export default function LambdaVisualizer() {
     const pt = getSvgPoint(e.clientX, e.clientY);
     const nodePos = positions.get(nodeId);
     if (!nodePos) return;
-    dragRef.current = {
-      nodeId,
-      startMouseX: pt.x,
-      startMouseY: pt.y,
-      startNodeX: nodePos.x,
-      startNodeY: nodePos.y,
-    };
+    dragRef.current = { nodeId, startMouseX: pt.x, startMouseY: pt.y, startNodeX: nodePos.x, startNodeY: nodePos.y };
     setDraggingId(nodeId);
   }, [positions, getSvgPoint]);
 
@@ -260,13 +311,7 @@ export default function LambdaVisualizer() {
     const pt = getSvgPoint(touch.clientX, touch.clientY);
     const nodePos = positions.get(nodeId);
     if (!nodePos) return;
-    dragRef.current = {
-      nodeId,
-      startMouseX: pt.x,
-      startMouseY: pt.y,
-      startNodeX: nodePos.x,
-      startNodeY: nodePos.y,
-    };
+    dragRef.current = { nodeId, startMouseX: pt.x, startMouseY: pt.y, startNodeX: nodePos.x, startNodeY: nodePos.y };
     setDraggingId(nodeId);
   }, [positions, getSvgPoint]);
 
@@ -318,7 +363,7 @@ export default function LambdaVisualizer() {
     };
   }, [handleMouseMove, handleTouchMove, handleDragEnd]);
 
-  // ── Reduction controls ───────────────────────────────────────────────────────
+  // ── Reduction controls ────────────────────────────────────────────────────────
   const doStep = useCallback(() => {
     if (isNormalForm) return;
     const clone = cloneNet(net);
@@ -364,6 +409,8 @@ export default function LambdaVisualizer() {
     setLastDesc('Select a preset and press Step to begin reduction.');
     setIsNormalForm(false);
     setAutoPlay(false);
+    setCustomInput('');
+    setParseError(null);
   };
 
   useEffect(() => {
@@ -383,7 +430,66 @@ export default function LambdaVisualizer() {
     setLastDesc('Preset loaded. Press Step to begin reduction.');
     setIsNormalForm(false);
     setAutoPlay(false);
+    setCustomInput('');
+    setParseError(null);
+    setShowCustom(false);
   };
+
+  // ── Custom lambda input ───────────────────────────────────────────────────────
+  const compileCustom = () => {
+    const src = customInput.trim();
+    if (!src) return;
+    try {
+      const term = parseLambda(src);
+      const { net: compiled } = compileLambda(term);
+      setNet(compiled);
+      setPositions(new Map());
+      prevNetKeyRef.current = '';
+      setHistory([]);
+      setStepCount(0);
+      setLastRule('—');
+      setLastDesc(`Compiled: ${src}`);
+      setIsNormalForm(false);
+      setAutoPlay(false);
+      setParseError(null);
+    } catch (err: unknown) {
+      setParseError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  // ── PNG Export ────────────────────────────────────────────────────────────────
+  const exportPng = useCallback(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const scale = 2; // retina
+      canvas.width = svgSize.w * scale;
+      canvas.height = svgSize.h * scale;
+      const ctx = canvas.getContext('2d')!;
+      ctx.scale(scale, scale);
+      ctx.fillStyle = '#faf7f2';
+      ctx.fillRect(0, 0, svgSize.w, svgSize.h);
+      ctx.drawImage(img, 0, 0, svgSize.w, svgSize.h);
+      URL.revokeObjectURL(url);
+
+      canvas.toBlob(blob => {
+        if (!blob) return;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `interaction-net-step-${String(stepCount).padStart(3, '0')}.png`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }, 'image/png');
+    };
+    img.src = url;
+  }, [svgSize, stepCount]);
 
   return (
     <div className="flex h-full gap-0" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
@@ -393,10 +499,42 @@ export default function LambdaVisualizer() {
           <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">PRESET</div>
           {PRESETS.map((p, i) => (
             <button key={p.id} onClick={() => loadPreset(i)}
-              className={`w-full text-left text-xs px-2 py-2 mb-1 border transition-colors ${presetIdx === i ? 'bg-[#1565c0] text-white border-[#1565c0]' : 'bg-white text-[#1a1a2e] border-[#1a1a2e] hover:bg-[#e8f0fe]'}`}>
+              className={`w-full text-left text-xs px-2 py-2 mb-1 border transition-colors ${presetIdx === i && !showCustom ? 'bg-[#1565c0] text-white border-[#1565c0]' : 'bg-white text-[#1a1a2e] border-[#1a1a2e] hover:bg-[#e8f0fe]'}`}>
               {p.label}
             </button>
           ))}
+        </div>
+
+        {/* Custom lambda input */}
+        <div>
+          <button
+            onClick={() => setShowCustom(v => !v)}
+            className={`w-full text-xs px-2 py-2 border-2 font-bold transition-colors ${showCustom ? 'bg-[#1a1a2e] text-white border-[#1a1a2e]' : 'bg-white text-[#1a1a2e] border-[#1a1a2e] hover:bg-[#e8f0fe]'}`}>
+            {showCustom ? '▲ CUSTOM TERM' : '▼ CUSTOM TERM'}
+          </button>
+          {showCustom && (
+            <div className="mt-2">
+              <textarea
+                value={customInput}
+                onChange={e => { setCustomInput(e.target.value); setParseError(null); }}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) compileCustom(); }}
+                placeholder={"e.g.  (\\x. x x) y\nor  \\f. f f"}
+                rows={3}
+                className="w-full text-xs border-2 border-[#1a1a2e] p-2 bg-white text-[#1a1a2e] resize-none outline-none focus:border-[#1565c0]"
+                style={{ fontFamily: 'IBM Plex Mono, monospace' }}
+              />
+              {parseError && (
+                <div className="text-xs text-[#c62828] mt-1 leading-tight">{parseError}</div>
+              )}
+              <button onClick={compileCustom}
+                className="w-full text-xs mt-1 px-2 py-2 bg-[#1565c0] text-white border-2 border-[#1565c0] hover:bg-[#0d47a1] font-bold transition-colors">
+                ⚙ COMPILE
+              </button>
+              <div className="text-xs text-[#888] mt-1 leading-tight">
+                Use <code>\x.</code> or <code>λx.</code> for lambda. Ctrl+Enter to compile.
+              </div>
+            </div>
+          )}
         </div>
 
         <div>
@@ -414,8 +552,12 @@ export default function LambdaVisualizer() {
             ↩ UNDO
           </button>
           <button onClick={doReset}
-            className="w-full text-xs px-3 py-2 bg-white text-[#1a1a2e] border-2 border-[#1a1a2e] hover:bg-[#f5f5f5] transition-colors font-bold">
+            className="w-full text-xs px-3 py-2 mb-2 bg-white text-[#1a1a2e] border-2 border-[#1a1a2e] hover:bg-[#f5f5f5] transition-colors font-bold">
             ↺ RESET
+          </button>
+          <button onClick={exportPng}
+            className="w-full text-xs px-3 py-2 bg-[#2e7d32] text-white border-2 border-[#2e7d32] hover:bg-[#1b5e20] transition-colors font-bold">
+            ↓ EXPORT PNG
           </button>
         </div>
 
@@ -442,20 +584,18 @@ export default function LambdaVisualizer() {
             <span className="text-xs text-[#1a1a2e]">ε Eraser</span>
           </div>
           <div className="text-xs text-[#888] leading-relaxed border-t border-[#e0ddd8] pt-2">
-            <span className="font-bold text-[#1a1a2e]">Drag</span> any node to reposition it on the canvas.
+            <span className="font-bold text-[#1a1a2e]">Drag</span> any node to reposition it.
           </div>
         </div>
       </div>
 
       {/* ── Center canvas ── */}
       <div className="flex-1 relative bg-[#faf7f2] overflow-hidden select-none">
-        {/* Step counter */}
         <div className="absolute top-3 left-4 z-10 pointer-events-none" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
           <span className="text-6xl text-[#1a1a2e] leading-none">{String(stepCount).padStart(3, '0')}</span>
           <span className="text-xs text-[#888] ml-2 font-mono uppercase tracking-wider">STEPS</span>
         </div>
 
-        {/* Drag hint */}
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
           <span className="text-xs text-[#bbb] uppercase tracking-widest" style={{ fontFamily: 'IBM Plex Mono' }}>
             {draggingId ? '⠿ DRAGGING' : '⠿ DRAG NODES TO REARRANGE'}
@@ -489,11 +629,10 @@ export default function LambdaVisualizer() {
             </marker>
           </defs>
 
-          {/* Decorative constructivist lines */}
           <line x1="0" y1={svgSize.h * 0.15} x2={svgSize.w * 0.08} y2="0" stroke="#e0ddd8" strokeWidth="1" />
           <line x1={svgSize.w * 0.92} y1={svgSize.h} x2={svgSize.w} y2={svgSize.h * 0.85} stroke="#e0ddd8" strokeWidth="1" />
 
-          {/* Edges — rendered below nodes */}
+          {/* Edges */}
           {serialized.edges.map((edge, i) => {
             const from = positions.get(edge.from.nodeId);
             const to = positions.get(edge.to.nodeId);
@@ -514,12 +653,12 @@ export default function LambdaVisualizer() {
                 opacity={opacity}
                 markerEnd={isActivePairEdge ? 'url(#arrowhead-active)' : 'url(#arrowhead)'}
                 strokeDasharray={isActivePairEdge ? '6 3' : undefined}
-                style={{ pointerEvents: 'none' }}
+                style={{ pointerEvents: 'none', transition: 'all 0.3s ease' }}
               />
             );
           })}
 
-          {/* Nodes — draggable */}
+          {/* Nodes */}
           {serialized.nodes.map(node => {
             const pos = positions.get(node.id);
             if (!pos) return null;
@@ -530,13 +669,13 @@ export default function LambdaVisualizer() {
                 pos={pos}
                 isActive={activeIds.has(node.id)}
                 isDragging={draggingId === node.id}
+                isNew={newNodeIds.has(node.id)}
                 onMouseDown={handleNodeMouseDown}
                 onTouchStart={handleNodeTouchStart}
               />
             );
           })}
 
-          {/* Node count */}
           <text x={svgSize.w - 10} y={svgSize.h - 10} textAnchor="end" fontSize={10}
             fill="#aaa" fontFamily="IBM Plex Mono, monospace" style={{ pointerEvents: 'none' }}>
             {serialized.nodes.length} nodes · {serialized.edges.length} edges
@@ -558,15 +697,25 @@ export default function LambdaVisualizer() {
             <div><span className="font-bold text-[#1565c0]">γ-γ annihilation:</span> Two constructors cancel, connecting aux ports.</div>
             <div><span className="font-bold text-[#f9a825]">δ-δ annihilation:</span> Two duplicators cancel similarly.</div>
             <div><span className="font-bold text-[#c62828]">ε-ε annihilation:</span> Two erasers vanish.</div>
-            <div><span className="font-bold text-[#888]">γ-δ commutation:</span> Constructor and duplicator swap, creating 4 new nodes — this is optimal sharing.</div>
+            <div><span className="font-bold text-[#888]">γ-δ commutation:</span> Constructor and duplicator swap, creating 4 new nodes — optimal sharing.</div>
             <div><span className="font-bold text-[#888]">ε-γ/δ commutation:</span> Eraser propagates into all auxiliary ports.</div>
+          </div>
+        </div>
+
+        <div>
+          <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">SYNTAX GUIDE</div>
+          <div className="text-xs text-[#444] leading-relaxed space-y-1">
+            <div><code className="bg-[#eee] px-1">\x. body</code> — abstraction</div>
+            <div><code className="bg-[#eee] px-1">f a</code> — application</div>
+            <div><code className="bg-[#eee] px-1">(f a) b</code> — grouping</div>
+            <div><code className="bg-[#eee] px-1">\x y. x</code> — multi-arg</div>
           </div>
         </div>
 
         <div>
           <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">ABOUT</div>
           <div className="text-xs text-[#444] leading-relaxed">
-            Interaction Nets were introduced by Yves Lafont (1990). The Y combinator in this model creates a self-referential loop via a Fanout (δ) tree — exactly the structure in the original diagram.
+            Interaction Nets were introduced by Yves Lafont (1990). The Y combinator creates a self-referential loop via a Fanout (δ) tree — exactly the structure in the original diagram.
           </div>
         </div>
       </div>
