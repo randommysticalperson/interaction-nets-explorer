@@ -196,7 +196,7 @@ function NodeShape({
 export default function LambdaVisualizer() {
   const [presetIdx, setPresetIdx] = useState(0);
   const [net, setNet] = useState<InteractionNet>(() => PRESETS[0].build());
-  const [history, setHistory] = useState<SerializedNet[]>([]);
+  const [history, setHistory] = useState<InteractionNet[]>([]);
   const [stepCount, setStepCount] = useState(0);
   const [lastRule, setLastRule] = useState<string>('—');
   const [lastDesc, setLastDesc] = useState<string>('Select a preset and press Step to begin reduction.');
@@ -271,18 +271,7 @@ export default function LambdaVisualizer() {
     setPositions(newPositions);
   }, [netKey, svgSize.w, svgSize.h]);
 
-  // Recompute layout when net or size changes
-  useEffect(() => {
-    const newPositions = computeForceLayout(
-      serialized.nodes,
-      serialized.edges,
-      svgSize.w,
-      svgSize.h,
-      positions
-    );
-    setPositions(newPositions);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [netKey, svgSize.w, svgSize.h]);
+
 
   const activePairs = findActivePairs(net);
   const activeIds = new Set(activePairs.flatMap(([a, b]) => [a.id, b.id]));
@@ -375,7 +364,7 @@ export default function LambdaVisualizer() {
       setAutoPlay(false);
       return;
     }
-    setHistory(h => [...h, serializeNet(net)]);
+    setHistory(h => [...h, cloneNet(net)]);
     setNet(clone);
     setStepCount(s => s + 1);
     setLastRule(result.rule);
@@ -389,9 +378,8 @@ export default function LambdaVisualizer() {
   const doUndo = () => {
     if (history.length === 0) return;
     const prev = history[history.length - 1];
-    const restored: InteractionNet = { nodes: new Map(), freeWires: [] };
-    for (const n of prev.nodes) restored.nodes.set(n.id, { ...n, ports: [...n.ports] });
-    setNet(restored);
+    // Restore from a full InteractionNet clone — preserves freeWires and port back-references
+    setNet(cloneNet(prev));
     setHistory(h => h.slice(0, -1));
     setStepCount(s => Math.max(0, s - 1));
     setIsNormalForm(false);
