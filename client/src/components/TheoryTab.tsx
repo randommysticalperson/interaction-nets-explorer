@@ -6,8 +6,31 @@
  * Content sourced from:
  * Rojas, R. (2015). "A Tutorial Introduction to the Lambda Calculus."
  * arXiv:1503.09060 [cs.LO]. Freie Universität Berlin.
+ *
+ * Features:
+ *  - KaTeX math rendering for all λ expressions
+ *  - Inline "Try it →" buttons that navigate to Visualizer with pre-loaded term
  */
 
+import { useTab } from '@/contexts/TabContext';
+import Math from '@/components/Math';
+
+// ─── Try-it button ────────────────────────────────────────────────────────────
+function TryIt({ term, label }: { term: string; label?: string }) {
+  const { setActiveTab, setPendingTerm } = useTab();
+  return (
+    <button
+      onClick={() => { setPendingTerm(term); setActiveTab('visualizer'); }}
+      title={`Load "${term}" in Visualizer`}
+      className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 border-2 border-[#1565c0] text-[#1565c0] bg-white hover:bg-[#1565c0] hover:text-white transition-colors ml-2 align-middle"
+      style={{ fontFamily: 'IBM Plex Mono, monospace' }}
+    >
+      ▶ {label ?? 'TRY IT'}
+    </button>
+  );
+}
+
+// ─── Section data ─────────────────────────────────────────────────────────────
 const SECTIONS = [
   {
     id: 'lambda',
@@ -28,9 +51,9 @@ const SECTIONS = [
         type: 'grammar' as const,
         title: 'Grammar',
         rows: [
-          ['⟨expression⟩', '::=', '⟨name⟩ | ⟨function⟩ | ⟨application⟩'],
-          ['⟨function⟩', '::=', 'λ ⟨name⟩ . ⟨expression⟩'],
-          ['⟨application⟩', '::=', '⟨expression⟩ ⟨expression⟩'],
+          { lhs: '\\langle expression \\rangle', mid: '::=', rhs: '\\langle name \\rangle \\mid \\langle function \\rangle \\mid \\langle application \\rangle' },
+          { lhs: '\\langle function \\rangle', mid: '::=', rhs: '\\lambda\\, \\langle name \\rangle\\, .\\, \\langle expression \\rangle' },
+          { lhs: '\\langle application \\rangle', mid: '::=', rhs: '\\langle expression \\rangle\\; \\langle expression \\rangle' },
         ],
       },
       {
@@ -47,22 +70,23 @@ const SECTIONS = [
     content: [
       {
         type: 'prose' as const,
-        text: 'Computation in the λ-calculus proceeds by two reduction rules. α-reduction (alpha) renames bound variables to avoid name clashes: (λz.z) ≡ (λy.y) ≡ (λt.t). These are all the same function — the argument name is merely a placeholder.',
+        text: 'Computation in the λ-calculus proceeds by two reduction rules. α-reduction renames bound variables to avoid name clashes: (λz.z) ≡ (λy.y) ≡ (λt.t). These are all the same function — the argument name is merely a placeholder.',
       },
       {
         type: 'rule' as const,
         title: 'β-Reduction',
-        lhs: '(λx.E) y',
-        arrow: '→',
-        rhs: 'E[y/x]',
+        lhsTex: '(\\lambda x.\\, E)\\; y',
+        arrow: '\\rightarrow',
+        rhsTex: 'E[y/x]',
         note: 'Substitute y for all free occurrences of x in E',
       },
       {
         type: 'example' as const,
         title: 'Identity Function',
+        tryTerm: '\\x. x',
         steps: [
-          { expr: '(λx.x) y', label: 'Apply identity to y' },
-          { expr: '→  y', label: 'Result: y returned unchanged' },
+          { tex: '(\\lambda x.\\, x)\\; y', label: 'Apply identity to y' },
+          { tex: '\\rightarrow\\; y', label: 'Result: y returned unchanged' },
         ],
       },
       {
@@ -85,20 +109,22 @@ const SECTIONS = [
         type: 'table' as const,
         headers: ['Numeral', 'λ-term', 'Meaning'],
         rows: [
-          ['0', 'λf.λx. x', 'Apply f zero times'],
-          ['1', 'λf.λx. f x', 'Apply f once'],
-          ['2', 'λf.λx. f(f x)', 'Apply f twice'],
-          ['n', 'λf.λx. fⁿ x', 'Apply f n times'],
+          { cells: ['0', '\\lambda f.\\lambda x.\\; x', 'Apply f zero times'], tryTerm: null },
+          { cells: ['1', '\\lambda f.\\lambda x.\\; f\\, x', 'Apply f once'], tryTerm: null },
+          { cells: ['2', '\\lambda f.\\lambda x.\\; f(f\\, x)', 'Apply f twice'], tryTerm: null },
+          { cells: ['n', '\\lambda f.\\lambda x.\\; f^n\\, x', 'Apply f n times'], tryTerm: null },
         ],
+        mathCols: [1],
       },
       {
         type: 'table' as const,
         headers: ['Operation', 'λ-term', 'Intuition'],
         rows: [
-          ['Successor', 'λwyx. y(wyx)', 'Add one more application of f'],
-          ['Addition', 'λmns. m S n', 'Apply successor m times to n'],
-          ['Multiplication', 'λxyz. x(yz)', 'Compose f application m×n times'],
+          { cells: ['Successor', '\\lambda w\\,y\\,x.\\; y(w\\,y\\,x)', 'Add one more application of f'], tryTerm: null },
+          { cells: ['Addition', '\\lambda m\\,n\\,s.\\; m\\, S\\, n', 'Apply successor m times to n'], tryTerm: null },
+          { cells: ['Multiplication', '\\lambda x\\,y\\,z.\\; x(y\\,z)', 'Compose f application m×n times'], tryTerm: null },
         ],
+        mathCols: [1],
       },
     ],
   },
@@ -116,13 +142,14 @@ const SECTIONS = [
         type: 'table' as const,
         headers: ['Concept', 'λ-term', 'Behaviour'],
         rows: [
-          ['TRUE', 'λxy. x', 'Returns first argument'],
-          ['FALSE', 'λxy. y', 'Returns second argument'],
-          ['AND', 'λxy. xy FALSE', 'True only if both true'],
-          ['OR', 'λxy. x TRUE y', 'True if either true'],
-          ['NOT', 'λx. x FALSE TRUE', 'Inverts the boolean'],
-          ['IF p THEN a ELSE b', 'p a b', 'p selects a or b directly'],
+          { cells: ['TRUE', '\\lambda x\\,y.\\; x', 'Returns first argument'], tryTerm: '\\x y. x' },
+          { cells: ['FALSE', '\\lambda x\\,y.\\; y', 'Returns second argument'], tryTerm: '\\x y. y' },
+          { cells: ['AND', '\\lambda x\\,y.\\; x\\,y\\,\\text{FALSE}', 'True only if both true'], tryTerm: null },
+          { cells: ['OR', '\\lambda x\\,y.\\; x\\,\\text{TRUE}\\,y', 'True if either true'], tryTerm: null },
+          { cells: ['NOT', '\\lambda x.\\; x\\,\\text{FALSE}\\,\\text{TRUE}', 'Inverts the boolean'], tryTerm: null },
+          { cells: ['IF p THEN a ELSE b', 'p\\; a\\; b', 'p selects a or b directly'], tryTerm: null },
         ],
+        mathCols: [1],
       },
       {
         type: 'prose' as const,
@@ -148,19 +175,21 @@ const SECTIONS = [
       {
         type: 'rule' as const,
         title: 'Y Combinator Definition',
-        lhs: 'Y',
-        arrow: '≡',
-        rhs: 'λf. (λx. f(xx))(λx. f(xx))',
+        lhsTex: 'Y',
+        arrow: '\\equiv',
+        rhsTex: '\\lambda f.\\; (\\lambda x.\\; f(x\\,x))\\,(\\lambda x.\\; f(x\\,x))',
         note: 'Self-application creates the recursive loop',
+        tryTerm: '\\f. (\\x. f (x x)) (\\x. f (x x))',
       },
       {
         type: 'example' as const,
         title: 'Proof that Y f = f(Y f)',
+        tryTerm: '(\\f. (\\x. f (x x)) (\\x. f (x x))) (\\y. y)',
         steps: [
-          { expr: 'Y f', label: 'Start' },
-          { expr: '(λx. f(xx))(λx. f(xx)) f', label: 'Expand Y' },
-          { expr: 'f((λx. f(xx))(λx. f(xx)))', label: 'β-reduce the self-application' },
-          { expr: 'f(Y f)', label: 'Recognise Y again — QED' },
+          { tex: 'Y\\, f', label: 'Start' },
+          { tex: '(\\lambda x.\\, f(x\\,x))\\,(\\lambda x.\\, f(x\\,x))\\; f', label: 'Expand Y' },
+          { tex: 'f\\,((\\lambda x.\\, f(x\\,x))\\,(\\lambda x.\\, f(x\\,x)))', label: 'β-reduce the self-application' },
+          { tex: 'f\\,(Y\\, f)', label: 'Recognise Y again — QED' },
         ],
       },
       {
@@ -181,15 +210,15 @@ const SECTIONS = [
       },
       {
         type: 'table' as const,
-        headers: ['Combinator', 'λ-term', 'Reduction rule', 'Intuition'],
+        headers: ['Combinator', 'λ-term', 'Rule', 'Intuition'],
         rows: [
-          ['I (Identity)', 'λx. x', 'I x → x', 'Returns argument unchanged'],
-          ['K (Constant)', 'λxy. x', 'K x y → x', 'Discards second argument'],
-          ['S (Substitution)', 'λxyz. xz(yz)', 'S x y z → xz(yz)', 'Distributes argument z to both x and y'],
-          ['B (Compose)', 'λxyz. x(yz)', 'B x y z → x(yz)', 'Function composition'],
-          ['C (Flip)', 'λxyz. xzy', 'C x y z → xzy', 'Swaps argument order'],
-          ['W (Duplicate)', 'λxy. xyy', 'W x y → xyy', 'Duplicates second argument'],
+          { cells: ['I (Identity)', '\\lambda x.\\; x', 'I\\, x \\to x', 'Returns argument unchanged'], tryTerm: '\\x. x' },
+          { cells: ['K (Constant)', '\\lambda x\\,y.\\; x', 'K\\, x\\, y \\to x', 'Discards second argument'], tryTerm: '\\x y. x' },
+          { cells: ['S (Substitution)', '\\lambda x\\,y\\,z.\\; xz(yz)', 'S\\, x\\, y\\, z \\to xz(yz)', 'Distributes z to both x and y'], tryTerm: null },
+          { cells: ['B (Compose)', '\\lambda x\\,y\\,z.\\; x(yz)', 'B\\, x\\, y\\, z \\to x(yz)', 'Function composition'], tryTerm: null },
+          { cells: ['W (Duplicate)', '\\lambda x\\,y.\\; x\\,y\\,y', 'W\\, x\\, y \\to x\\,y\\,y', 'Duplicates second argument'], tryTerm: '\\x y. x y y' },
         ],
+        mathCols: [1, 2],
       },
       {
         type: 'prose' as const,
@@ -211,22 +240,24 @@ const SECTIONS = [
         type: 'table' as const,
         headers: ['Node', 'Symbol', 'Ports', 'Corresponds to'],
         rows: [
-          ['Constructor γ', '▲ (blue)', 'Principal + 2 aux', 'Lambda abstraction / application'],
-          ['Duplicator δ', '◆ (yellow)', 'Principal + 2 aux', 'Variable sharing / duplication (W)'],
-          ['Eraser ε', '● (red)', 'Principal only', 'Garbage collection / K combinator'],
+          { cells: ['Constructor γ', '▲ (blue)', 'Principal + 2 aux', 'Lambda abstraction / application'], tryTerm: null },
+          { cells: ['Duplicator δ', '◆ (yellow)', 'Principal + 2 aux', 'Variable sharing / duplication (W)'], tryTerm: null },
+          { cells: ['Eraser ε', '● (red)', 'Principal only', 'Garbage collection / K combinator'], tryTerm: null },
         ],
+        mathCols: [],
       },
       {
         type: 'table' as const,
         headers: ['Rule', 'Active Pair', 'Effect'],
         rows: [
-          ['γ-γ annihilation', 'γ ↔ γ', 'Two constructors cancel, connecting aux ports directly'],
-          ['δ-δ annihilation', 'δ ↔ δ', 'Two duplicators cancel, connecting aux ports directly'],
-          ['ε-ε annihilation', 'ε ↔ ε', 'Two erasers cancel, leaving nothing'],
-          ['γ-δ commutation', 'γ ↔ δ', 'Constructor and duplicator swap, creating 4 new nodes'],
-          ['γ-ε commutation', 'γ ↔ ε', 'Constructor erased, aux ports connected to new erasers'],
-          ['δ-ε commutation', 'δ ↔ ε', 'Duplicator erased, aux ports connected to new erasers'],
+          { cells: ['γ-γ annihilation', '\\gamma \\leftrightarrow \\gamma', 'Two constructors cancel, connecting aux ports directly'], tryTerm: null },
+          { cells: ['δ-δ annihilation', '\\delta \\leftrightarrow \\delta', 'Two duplicators cancel, connecting aux ports directly'], tryTerm: null },
+          { cells: ['ε-ε annihilation', '\\varepsilon \\leftrightarrow \\varepsilon', 'Two erasers cancel, leaving nothing'], tryTerm: null },
+          { cells: ['γ-δ commutation', '\\gamma \\leftrightarrow \\delta', 'Constructor and duplicator swap, creating 4 new nodes'], tryTerm: null },
+          { cells: ['γ-ε commutation', '\\gamma \\leftrightarrow \\varepsilon', 'Constructor erased, aux ports connected to new erasers'], tryTerm: null },
+          { cells: ['δ-ε commutation', '\\delta \\leftrightarrow \\varepsilon', 'Duplicator erased, aux ports connected to new erasers'], tryTerm: null },
         ],
+        mathCols: [1],
       },
       {
         type: 'prose' as const,
@@ -236,13 +267,14 @@ const SECTIONS = [
   },
 ];
 
+// ─── Content block types ──────────────────────────────────────────────────────
 type SectionContent =
   | { type: 'quote'; text: string; attribution: string }
   | { type: 'prose'; text: string }
-  | { type: 'grammar'; title: string; rows: string[][] }
-  | { type: 'rule'; title: string; lhs: string; arrow: string; rhs: string; note: string }
-  | { type: 'example'; title: string; steps: { expr: string; label: string }[] }
-  | { type: 'table'; headers: string[]; rows: string[][] };
+  | { type: 'grammar'; title: string; rows: { lhs: string; mid: string; rhs: string }[] }
+  | { type: 'rule'; title: string; lhsTex: string; arrow: string; rhsTex: string; note: string; tryTerm?: string }
+  | { type: 'example'; title: string; tryTerm?: string; steps: { tex: string; label: string }[] }
+  | { type: 'table'; headers: string[]; rows: { cells: string[]; tryTerm: string | null }[]; mathCols: number[] };
 
 function SectionBlock({ item }: { item: SectionContent }) {
   if (item.type === 'quote') {
@@ -253,46 +285,68 @@ function SectionBlock({ item }: { item: SectionContent }) {
       </blockquote>
     );
   }
+
   if (item.type === 'prose') {
     return <p className="text-sm text-[#333] leading-relaxed my-3">{item.text}</p>;
   }
+
   if (item.type === 'grammar') {
     return (
       <div className="my-4">
         <div className="text-xs font-bold uppercase tracking-widest text-[#888] mb-2">{item.title}</div>
         <div className="bg-[#1a1a2e] rounded p-3 overflow-x-auto">
           {item.rows.map((row, i) => (
-            <div key={i} className="flex gap-3 text-xs font-mono leading-6 flex-wrap">
-              <span className="text-[#f9a825] min-w-[120px]">{row[0]}</span>
-              <span className="text-[#888]">{row[1]}</span>
-              <span className="text-[#4fc3f7]">{row[2]}</span>
+            <div key={i} className="flex gap-3 items-center leading-8 flex-wrap">
+              <span className="text-[#f9a825] min-w-[140px]">
+                <Math tex={row.lhs} />
+              </span>
+              <span className="text-[#888] text-sm">{row.mid}</span>
+              <span className="text-[#4fc3f7]">
+                <Math tex={row.rhs} />
+              </span>
             </div>
           ))}
         </div>
       </div>
     );
   }
+
   if (item.type === 'rule') {
     return (
       <div className="my-4 bg-[#f0ede8] border-2 border-[#1a1a2e] p-3">
-        <div className="text-xs font-bold uppercase tracking-widest text-[#888] mb-2">{item.title}</div>
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+          <div className="text-xs font-bold uppercase tracking-widest text-[#888]">{item.title}</div>
+          {item.tryTerm && <TryIt term={item.tryTerm} />}
+        </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <code className="text-sm font-mono text-[#1565c0] bg-white px-2 py-1 border border-[#1a1a2e]">{item.lhs}</code>
-          <span className="text-lg text-[#c62828] font-bold">{item.arrow}</span>
-          <code className="text-sm font-mono text-[#c62828] bg-white px-2 py-1 border border-[#1a1a2e]">{item.rhs}</code>
+          <div className="bg-white px-3 py-1.5 border border-[#1a1a2e]">
+            <Math tex={item.lhsTex} />
+          </div>
+          <div className="text-lg text-[#c62828] font-bold">
+            <Math tex={item.arrow} />
+          </div>
+          <div className="bg-white px-3 py-1.5 border border-[#1a1a2e]">
+            <Math tex={item.rhsTex} />
+          </div>
         </div>
         <p className="text-xs text-[#666] mt-2">{item.note}</p>
       </div>
     );
   }
+
   if (item.type === 'example') {
     return (
       <div className="my-4">
-        <div className="text-xs font-bold uppercase tracking-widest text-[#888] mb-2">{item.title}</div>
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <div className="text-xs font-bold uppercase tracking-widest text-[#888]">{item.title}</div>
+          {item.tryTerm && <TryIt term={item.tryTerm} />}
+        </div>
         <div className="bg-[#1a1a2e] p-3 rounded overflow-x-auto">
           {item.steps.map((step, i) => (
-            <div key={i} className="flex items-start gap-3 mb-1 flex-wrap">
-              <code className="text-sm font-mono text-[#4fc3f7] min-w-[180px]">{step.expr}</code>
+            <div key={i} className="flex items-center gap-4 mb-1.5 flex-wrap">
+              <span className="text-[#4fc3f7] min-w-[200px]">
+                <Math tex={step.tex} />
+              </span>
               <span className="text-xs text-[#666] italic">{step.label}</span>
             </div>
           ))}
@@ -300,23 +354,35 @@ function SectionBlock({ item }: { item: SectionContent }) {
       </div>
     );
   }
+
   if (item.type === 'table') {
     return (
       <div className="my-4 overflow-x-auto">
-        <table className="w-full text-xs border-collapse min-w-[400px]">
+        <table className="w-full text-xs border-collapse min-w-[380px]">
           <thead>
             <tr className="bg-[#1a1a2e] text-white">
               {item.headers.map((h, i) => (
                 <th key={i} className="text-left px-3 py-2 font-bold uppercase tracking-wider border border-[#333]">{h}</th>
               ))}
+              {/* Extra column header if any row has a tryTerm */}
+              {item.rows.some(r => r.tryTerm) && (
+                <th className="px-3 py-2 border border-[#333]"></th>
+              )}
             </tr>
           </thead>
           <tbody>
             {item.rows.map((row, i) => (
               <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-[#f5f3ef]'}>
-                {row.map((cell, j) => (
-                  <td key={j} className={`px-3 py-2 border border-[#e0ddd8] leading-relaxed ${j === 0 ? 'font-bold text-[#1565c0] font-mono' : 'text-[#333]'}`}>{cell}</td>
+                {row.cells.map((cell, j) => (
+                  <td key={j} className={`px-3 py-2 border border-[#e0ddd8] leading-relaxed ${j === 0 ? 'font-bold text-[#1565c0] font-mono' : 'text-[#333]'}`}>
+                    {item.mathCols.includes(j) ? <Math tex={cell} /> : cell}
+                  </td>
                 ))}
+                {item.rows.some(r => r.tryTerm) && (
+                  <td className="px-2 py-1 border border-[#e0ddd8] text-center">
+                    {row.tryTerm && <TryIt term={row.tryTerm} label="TRY" />}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -324,14 +390,16 @@ function SectionBlock({ item }: { item: SectionContent }) {
       </div>
     );
   }
+
   return null;
 }
 
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function TheoryTab() {
   return (
     <div className="flex h-full bg-[#faf7f2] overflow-hidden" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
 
-      {/* ── Left section nav (hidden on mobile, shown as sticky top bar on mobile) ── */}
+      {/* ── Left section nav (desktop) ── */}
       <aside className="hidden md:flex w-48 shrink-0 flex-col border-r-2 border-[#1a1a2e] bg-[#faf7f2] overflow-y-auto">
         <div className="p-4 border-b-2 border-[#1a1a2e]">
           <div className="text-xs font-bold uppercase tracking-widest text-[#888]">CONTENTS</div>
@@ -413,7 +481,7 @@ export default function TheoryTab() {
             <p className="text-xs text-[#888] leading-relaxed">
               Content summarised and adapted from Rojas (2015), arXiv:1503.09060.
               The interaction nets formalism (§7) is due to Yves Lafont (1990).
-              Use the Lambda Visualizer tab to explore these concepts interactively.
+              Click any <span className="text-[#1565c0] font-bold">▶ TRY IT</span> button to load the term into the Lambda Visualizer.
             </p>
           </div>
         </div>

@@ -6,7 +6,8 @@
  * Mobile: Compact hero, scrollable tab bar, stacked layouts in visualizer
  */
 
-import { useState } from 'react';
+import { useEffect } from 'react';
+import { TabProvider, useTab } from '@/contexts/TabContext';
 import LambdaVisualizer from '@/components/LambdaVisualizer';
 import ChemSim from '@/components/ChemSim';
 import BenchmarkTab from '@/components/BenchmarkTab';
@@ -16,7 +17,6 @@ const TABS = [
   {
     id: 'theory',
     label: '00 — THEORY',
-    shortLabel: '00',
     mobileLabel: 'THEORY',
     description: 'Lambda calculus, Y combinator, interaction nets — from the paper',
     color: '#c62828',
@@ -24,7 +24,6 @@ const TABS = [
   {
     id: 'visualizer',
     label: '01 — VISUALIZER',
-    shortLabel: '01',
     mobileLabel: 'VISUALIZE',
     description: 'Step through interaction net reductions of lambda terms',
     color: '#1565c0',
@@ -32,7 +31,6 @@ const TABS = [
   {
     id: 'chemsim',
     label: '02 — CHEM SIM',
-    shortLabel: '02',
     mobileLabel: 'CHEM SIM',
     description: 'Watch nodes react like molecules in an artificial chemistry',
     color: '#4fc3f7',
@@ -40,23 +38,32 @@ const TABS = [
   {
     id: 'benchmark',
     label: '03 — BENCHMARK',
-    shortLabel: '03',
     mobileLabel: 'BENCH',
     description: 'Compare interaction net reduction against naive evaluation',
     color: '#f9a825',
   },
 ];
 
-export default function Home() {
-  const [activeTab, setActiveTab] = useState('theory');
-  const [menuOpen, setMenuOpen] = useState(false);
+function HomeInner() {
+  const { activeTab, setActiveTab } = useTab();
+
+  // Sync hash changes from browser back/forward
+  useEffect(() => {
+    const onHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (['theory', 'visualizer', 'chemsim', 'benchmark'].includes(hash)) {
+        setActiveTab(hash);
+      }
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, [setActiveTab]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#faf7f2]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
 
       {/* ── Hero Banner ── */}
       <header className="relative overflow-hidden border-b-4 border-[#1a1a2e]">
-        {/* Hero image background */}
         <div className="absolute inset-0">
           <img
             src="https://d2xsxph8kpxj0f.cloudfront.net/310519663332318761/WM3AwWk69yvSWvA2DNfeA4/hero_bg-VyrxximgZn4AG86fgvrvk3.webp"
@@ -65,18 +72,14 @@ export default function Home() {
           />
           <div className="absolute inset-0 bg-[#faf7f2]/80" />
         </div>
-
-        {/* Constructivist diagonal accent */}
         <div className="absolute top-0 right-0 w-1 h-full bg-[#c62828]" />
         <div className="absolute top-0 right-4 w-0.5 h-full bg-[#f9a825]" />
 
         <div className="relative z-10 px-4 md:px-8 py-5 md:py-8 flex items-end justify-between">
           <div>
-            {/* Overline */}
             <div className="text-[10px] md:text-xs font-bold uppercase tracking-[0.2em] md:tracking-[0.3em] text-[#c62828] mb-1 md:mb-2">
               YVES LAFONT · 1990 · OPTIMAL REDUCTION
             </div>
-            {/* Title */}
             <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", lineHeight: 1 }}
               className="text-5xl md:text-7xl text-[#1a1a2e] leading-none">
               INTERACTION
@@ -91,7 +94,6 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Node type legend — right side, hidden on small screens */}
           <div className="hidden lg:flex flex-col gap-3 text-right shrink-0 ml-4">
             <div className="flex items-center gap-3 justify-end">
               <span className="text-xs text-[#1a1a2e] uppercase tracking-wider">Constructor γ</span>
@@ -109,9 +111,9 @@ export default function Home() {
         </div>
       </header>
 
-      {/* ── Tab Bar — desktop: full labels, mobile: icon + short label ── */}
+      {/* ── Tab Bar ── */}
       <nav className="border-b-2 border-[#1a1a2e] bg-[#faf7f2]">
-        {/* Desktop tab bar */}
+        {/* Desktop */}
         <div className="hidden sm:flex">
           {TABS.map(tab => (
             <button
@@ -130,7 +132,7 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Mobile tab bar — compact scrollable */}
+        {/* Mobile */}
         <div className="sm:hidden flex overflow-x-auto">
           {TABS.map(tab => (
             <button
@@ -146,10 +148,7 @@ export default function Home() {
       </nav>
 
       {/* ── Tab Content ── */}
-      <main
-        className="flex-1 overflow-hidden"
-        style={{ height: 'calc(100dvh - var(--header-h, 220px))', minHeight: 400 }}
-      >
+      <main className="flex-1 overflow-hidden" style={{ height: 'calc(100dvh - var(--header-h, 220px))', minHeight: 400 }}>
         {activeTab === 'theory' && <TheoryTab />}
         {activeTab === 'visualizer' && <LambdaVisualizer />}
         {activeTab === 'chemsim' && <ChemSim />}
@@ -169,5 +168,13 @@ export default function Home() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <TabProvider>
+      <HomeInner />
+    </TabProvider>
   );
 }

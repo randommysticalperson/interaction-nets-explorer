@@ -18,6 +18,7 @@ import {
   PRESETS,
 } from '@/lib/interactionNet';
 import { parseLambda, compileLambda } from '@/lib/lambdaParser';
+import { useTab } from '@/contexts/TabContext';
 
 const NODE_COLORS: Record<string, string> = {
   constructor: '#1565c0',
@@ -194,6 +195,7 @@ function NodeShape({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function LambdaVisualizer() {
+  const { pendingTerm, setPendingTerm } = useTab();
   const [presetIdx, setPresetIdx] = useState(0);
   const [net, setNet] = useState<InteractionNet>(() => PRESETS[0].build());
   const [history, setHistory] = useState<InteractionNet[]>([]);
@@ -423,6 +425,31 @@ export default function LambdaVisualizer() {
     setParseError(null);
     setShowCustom(false);
   };
+
+  // ── Consume pendingTerm from Theory tab Try-it buttons ─────────────────────
+  useEffect(() => {
+    if (!pendingTerm) return;
+    try {
+      const term = parseLambda(pendingTerm);
+      const { net: compiled } = compileLambda(term);
+      setNet(compiled);
+      setPositions(new Map());
+      prevNetKeyRef.current = '';
+      setHistory([]);
+      setStepCount(0);
+      setLastRule('—');
+      setLastDesc(`Loaded from Theory: ${pendingTerm}`);
+      setIsNormalForm(false);
+      setAutoPlay(false);
+      setParseError(null);
+      setCustomInput(pendingTerm);
+      setShowCustom(true);
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : String(err));
+      setShowCustom(true);
+    }
+    setPendingTerm(null);
+  }, [pendingTerm, setPendingTerm]);
 
   // ── Custom lambda input ───────────────────────────────────────────────────────
   const compileCustom = () => {
