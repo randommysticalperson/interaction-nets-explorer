@@ -223,6 +223,11 @@ export default function LambdaVisualizer() {
   const [svgSize, setSvgSize] = useState({ w: 560, h: 420 });
 
   const [positions, setPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
+  // Always-current refs so drag handlers never capture stale closures
+  const positionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const svgSizeRef = useRef({ w: 560, h: 420 });
+  useEffect(() => { positionsRef.current = positions; }, [positions]);
+  useEffect(() => { svgSizeRef.current = svgSize; }, [svgSize]);
 
   // Track new node IDs for entrance animation
   const [newNodeIds, setNewNodeIds] = useState<Set<string>>(new Set());
@@ -302,54 +307,64 @@ export default function LambdaVisualizer() {
     e.preventDefault();
     e.stopPropagation();
     const pt = getSvgPoint(e.clientX, e.clientY);
-    const nodePos = positions.get(nodeId);
+    // Always read from ref — never stale regardless of render cycle
+    const nodePos = positionsRef.current.get(nodeId);
     if (!nodePos) return;
     dragRef.current = { nodeId, startMouseX: pt.x, startMouseY: pt.y, startNodeX: nodePos.x, startNodeY: nodePos.y };
     setDraggingId(nodeId);
-  }, [positions, getSvgPoint]);
+  }, [getSvgPoint]);
 
   const handleNodeTouchStart = useCallback((e: React.TouchEvent, nodeId: string) => {
     e.stopPropagation();
     const touch = e.touches[0];
     const pt = getSvgPoint(touch.clientX, touch.clientY);
-    const nodePos = positions.get(nodeId);
+    const nodePos = positionsRef.current.get(nodeId);
     if (!nodePos) return;
     dragRef.current = { nodeId, startMouseX: pt.x, startMouseY: pt.y, startNodeX: nodePos.x, startNodeY: nodePos.y };
     setDraggingId(nodeId);
-  }, [positions, getSvgPoint]);
+  }, [getSvgPoint]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragRef.current) return;
+    const drag = dragRef.current;
+    if (!drag) return;
     const pt = getSvgPoint(e.clientX, e.clientY);
-    const dx = pt.x - dragRef.current.startMouseX;
-    const dy = pt.y - dragRef.current.startMouseY;
-    const newX = Math.max(30, Math.min(svgSize.w - 30, dragRef.current.startNodeX + dx));
-    const newY = Math.max(30, Math.min(svgSize.h - 30, dragRef.current.startNodeY + dy));
+    const dx = pt.x - drag.startMouseX;
+    const dy = pt.y - drag.startMouseY;
+    // Use svgSizeRef so bounds are always current without re-registering the listener
+    const { w, h } = svgSizeRef.current;
+    const newX = Math.max(30, Math.min(w - 30, drag.startNodeX + dx));
+    const newY = Math.max(30, Math.min(h - 30, drag.startNodeY + dy));
+    // Snapshot nodeId before async state update to prevent null dereference
+    const nodeId = drag.nodeId;
     setPositions(prev => {
       const next = new Map(prev);
-      next.set(dragRef.current!.nodeId, { x: newX, y: newY });
+      next.set(nodeId, { x: newX, y: newY });
       return next;
     });
-  }, [getSvgPoint, svgSize]);
+  }, [getSvgPoint]);
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (!dragRef.current) return;
+    const drag = dragRef.current;
+    if (!drag) return;
     e.preventDefault();
     const touch = e.touches[0];
     const pt = getSvgPoint(touch.clientX, touch.clientY);
-    const dx = pt.x - dragRef.current.startMouseX;
-    const dy = pt.y - dragRef.current.startMouseY;
-    const newX = Math.max(30, Math.min(svgSize.w - 30, dragRef.current.startNodeX + dx));
-    const newY = Math.max(30, Math.min(svgSize.h - 30, dragRef.current.startNodeY + dy));
+    const dx = pt.x - drag.startMouseX;
+    const dy = pt.y - drag.startMouseY;
+    const { w, h } = svgSizeRef.current;
+    const newX = Math.max(30, Math.min(w - 30, drag.startNodeX + dx));
+    const newY = Math.max(30, Math.min(h - 30, drag.startNodeY + dy));
+    const nodeId = drag.nodeId;
     setPositions(prev => {
       const next = new Map(prev);
-      next.set(dragRef.current!.nodeId, { x: newX, y: newY });
+      next.set(nodeId, { x: newX, y: newY });
       return next;
     });
-  }, [getSvgPoint, svgSize]);
+  }, [getSvgPoint]);
 
   const handleDragEnd = useCallback(() => {
-    const droppedId = dragRef.current?.nodeId ?? null;
+    // Snapshot nodeId BEFORE clearing ref to prevent race with async updater
+    const droppedId = dragRef.current ? dragRef.current.nodeId : null;
     dragRef.current = null;
     setDraggingId(null);
     if (!droppedId) return;
