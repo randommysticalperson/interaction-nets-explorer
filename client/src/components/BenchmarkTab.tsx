@@ -184,9 +184,9 @@ export default function BenchmarkTab() {
   }));
 
   return (
-    <div className="flex h-full bg-[#faf7f2]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+    <div className="flex flex-col md:flex-row h-full bg-[#faf7f2] overflow-y-auto md:overflow-hidden" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
       {/* Left panel */}
-      <div className="w-64 shrink-0 border-r-2 border-[#1a1a2e] flex flex-col p-4 gap-4">
+      <div className="w-full md:w-64 md:shrink-0 md:border-r-2 border-b-2 md:border-b-0 border-[#1a1a2e] flex flex-col p-4 gap-4 md:overflow-y-auto">
         <div>
           <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">ENGINE BENCHMARK</div>
           <p className="text-xs text-[#444] leading-relaxed mb-4">
@@ -222,7 +222,7 @@ export default function BenchmarkTab() {
       </div>
 
       {/* Main area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col md:overflow-hidden">
         {/* Chart */}
         <div className="flex-1 p-6 min-h-0">
           <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-4">
@@ -257,7 +257,8 @@ export default function BenchmarkTab() {
         {results.length > 0 && (
           <div className="p-6 border-t-2 border-[#1a1a2e]">
             <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">RESULTS TABLE</div>
-            <table className="w-full text-xs" style={{ fontFamily: 'IBM Plex Mono' }}>
+            <div className="overflow-x-auto">
+            <table className="w-full text-xs min-w-[480px]" style={{ fontFamily: 'IBM Plex Mono' }}>
               <thead>
                 <tr className="border-b border-[#1a1a2e]">
                   <th className="text-left py-1 pr-4 text-[#1a1a2e] font-bold">BENCHMARK</th>
@@ -281,6 +282,7 @@ export default function BenchmarkTab() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
 

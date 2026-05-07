@@ -480,8 +480,47 @@ export default function LambdaVisualizer() {
     img.src = url;
   }, [svgSize, stepCount]);
 
+  const [showControls, setShowControls] = useState(false);
+
   return (
-    <div className="flex h-full gap-0" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+    <div className="flex flex-col h-full" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+
+      {/* ── Mobile top bar ── */}
+      <div className="md:hidden flex items-center justify-between px-3 py-2 border-b-2 border-[#1a1a2e] bg-[#faf7f2]">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-bold text-[#1a1a2e]" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>{String(stepCount).padStart(3, '0')} STEPS</span>
+          {activePairs.length > 0 && !isNormalForm && <span className="text-[10px] bg-[#c62828] text-white px-2 py-0.5 font-bold animate-pulse">{activePairs.length} ACTIVE</span>}
+          {isNormalForm && <span className="text-[10px] bg-[#2e7d32] text-white px-2 py-0.5 font-bold">NORMAL FORM</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={doStep} disabled={isNormalForm} className="text-[10px] px-2 py-1 bg-[#1a1a2e] text-white font-bold disabled:opacity-40">▶ STEP</button>
+          <button onClick={() => setAutoPlay(a => !a)} disabled={isNormalForm} className={`text-[10px] px-2 py-1 font-bold disabled:opacity-40 ${autoPlay ? 'bg-[#c62828] text-white' : 'bg-white text-[#1a1a2e] border border-[#1a1a2e]'}`}>{autoPlay ? '⏸' : '⏩'}</button>
+          <button onClick={() => setShowControls(v => !v)} className="text-[10px] px-2 py-1 bg-[#f0ede8] text-[#1a1a2e] border border-[#1a1a2e] font-bold">{showControls ? '▲ LESS' : '▼ MORE'}</button>
+        </div>
+      </div>
+
+      {/* ── Mobile expanded controls drawer ── */}
+      {showControls && (
+        <div className="md:hidden bg-[#faf7f2] border-b-2 border-[#1a1a2e] px-3 py-3 grid grid-cols-2 gap-2 text-xs">
+          <div className="col-span-2 font-bold uppercase tracking-widest text-[#888] text-[10px] border-b border-[#e0ddd8] pb-1 mb-1">PRESET</div>
+          {PRESETS.map((p, i) => (
+            <button key={p.id} onClick={() => { loadPreset(i); setShowControls(false); }}
+              className={`text-[10px] px-2 py-1.5 border text-left transition-colors ${presetIdx === i && !showCustom ? 'bg-[#1565c0] text-white border-[#1565c0]' : 'bg-white text-[#1a1a2e] border-[#1a1a2e]'}`}>
+              {p.label}
+            </button>
+          ))}
+          <button onClick={doUndo} disabled={history.length === 0} className="text-[10px] px-2 py-1.5 bg-white border border-[#1a1a2e] font-bold disabled:opacity-40">↩ UNDO</button>
+          <button onClick={doReset} className="text-[10px] px-2 py-1.5 bg-white border border-[#1a1a2e] font-bold">↺ RESET</button>
+          <button onClick={exportPng} className="col-span-2 text-[10px] px-2 py-1.5 bg-[#2e7d32] text-white font-bold">↓ EXPORT PNG</button>
+          <div className="col-span-2">
+            <input type="range" min={100} max={1500} step={100} value={speed} onChange={e => setSpeed(Number(e.target.value))} className="w-full accent-[#1565c0]" />
+            <div className="text-[10px] text-center text-[#555]">{speed}ms / step</div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Desktop three-panel layout ── */}
+      <div className="hidden md:flex flex-1 overflow-hidden">
       {/* ── Left control rail ── */}
       <div className="w-56 shrink-0 border-r-2 border-[#1a1a2e] bg-[#faf7f2] flex flex-col p-4 gap-4 overflow-y-auto">
         <div>
@@ -673,7 +712,7 @@ export default function LambdaVisualizer() {
       </div>
 
       {/* ── Right info panel ── */}
-      <div className="w-52 shrink-0 border-l-2 border-[#1a1a2e] bg-[#faf7f2] flex flex-col p-4 gap-4 overflow-y-auto">
+      <div className="w-52 shrink-0 border-l-2 border-[#1a1a2e] bg-[#faf7f2] flex flex-col p-4 gap-4 overflow-y-auto hidden lg:flex">
         <div>
           <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">LAST RULE</div>
           <div className="text-sm font-bold text-[#1565c0] mb-2">{lastRule}</div>
@@ -708,6 +747,45 @@ export default function LambdaVisualizer() {
           </div>
         </div>
       </div>
+      </div>{/* end desktop three-panel */}
+
+      {/* ── Mobile canvas (full width) ── */}
+      <div className="md:hidden flex-1 relative bg-[#faf7f2] overflow-hidden select-none">
+        <div className="absolute top-2 left-3 z-10 pointer-events-none">
+          <span className="text-xs text-[#888] uppercase tracking-wider">{serialized.nodes.length} nodes · {serialized.edges.length} edges</span>
+        </div>
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+          <span className="text-[10px] text-[#bbb] uppercase tracking-widest">{draggingId ? '⠿ DRAGGING' : '⠿ DRAG TO REARRANGE'}</span>
+        </div>
+        <svg ref={svgRef} width="100%" height="100%" className="absolute inset-0" style={{ cursor: draggingId ? 'grabbing' : 'default' }}>
+          <defs>
+            <marker id="arrowhead-m" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#1a1a2e" opacity="0.6" /></marker>
+            <marker id="arrowhead-active-m" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#c62828" /></marker>
+          </defs>
+          {serialized.edges.map((edge, i) => {
+            const from = positions.get(edge.from.nodeId);
+            const to = positions.get(edge.to.nodeId);
+            if (!from || !to) return null;
+            const isActive = edge.from.portIndex === 0 && edge.to.portIndex === 0;
+            const mx = (from.x + to.x) / 2;
+            const my = (from.y + to.y) / 2 - 20;
+            return <path key={i} d={`M ${from.x} ${from.y} Q ${mx} ${my} ${to.x} ${to.y}`} stroke={isActive ? '#c62828' : '#1a1a2e'} strokeWidth={isActive ? 2.5 : 1.5} fill="none" opacity={isActive ? 1 : 0.5} markerEnd={isActive ? 'url(#arrowhead-active-m)' : 'url(#arrowhead-m)'} strokeDasharray={isActive ? '6 3' : undefined} style={{ pointerEvents: 'none' }} />;
+          })}
+          {serialized.nodes.map(node => {
+            const pos = positions.get(node.id);
+            if (!pos) return null;
+            return <NodeShape key={node.id} node={node} pos={pos} isActive={activeIds.has(node.id)} isDragging={draggingId === node.id} isNew={newNodeIds.has(node.id)} onMouseDown={handleNodeMouseDown} onTouchStart={handleNodeTouchStart} />;
+          })}
+        </svg>
+      </div>
+
+      {/* ── Mobile last rule info ── */}
+      {lastRule !== '—' && (
+        <div className="md:hidden border-t-2 border-[#1a1a2e] bg-[#faf7f2] px-3 py-2">
+          <span className="text-[10px] font-bold text-[#1565c0] uppercase tracking-wider">{lastRule}: </span>
+          <span className="text-[10px] text-[#444]">{lastDesc}</span>
+        </div>
+      )}
     </div>
   );
 }

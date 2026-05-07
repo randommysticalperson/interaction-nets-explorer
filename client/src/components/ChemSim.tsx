@@ -301,38 +301,36 @@ export default function ChemSim() {
 
   return (
     <div className="flex flex-col h-full bg-[#050d1a]">
-      {/* Top bar */}
-      <div className="flex items-center gap-4 px-4 py-2 border-b border-[#1a2a4a] bg-[#080f1e]">
-        <div style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-[#4fc3f7] text-2xl tracking-widest">CHEMLAMBDA SIM</div>
-
-        <div className="flex gap-2 ml-4">
+      {/* Top bar — two rows on mobile, one row on desktop */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-3 sm:px-4 py-2 border-b border-[#1a2a4a] bg-[#080f1e]">
+        {/* Row 1: title + run/reset/speed */}
+        <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
+          <div style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-[#4fc3f7] text-xl sm:text-2xl tracking-widest shrink-0">CHEM SIM</div>
+          <div className="ml-auto sm:ml-0 flex items-center gap-2">
+            <button onClick={() => setRunning(r => !r)}
+              className={`text-xs px-3 py-1 border font-bold transition-colors ${running ? 'border-[#c6ff00] text-[#c6ff00] bg-[#1a2a00]' : 'border-[#4fc3f7] text-[#4fc3f7] bg-[#0d1f3a] hover:bg-[#0d2a3a]'}`}
+              style={{ fontFamily: 'IBM Plex Mono, monospace' }}>
+              {running ? '⏸ PAUSE' : '▶ RUN'}
+            </button>
+            <button onClick={() => { initSim(presetIdx); setRunning(false); }}
+              className="text-xs px-2 py-1 border border-[#e040fb] text-[#e040fb] hover:bg-[#1a0a2a] transition-colors"
+              style={{ fontFamily: 'IBM Plex Mono, monospace' }}>
+              ↺
+            </button>
+            <input type="range" min={100} max={2000} step={100} value={rewriteRate}
+              onChange={e => setRewriteRate(Number(e.target.value))}
+              className="w-16 sm:w-20 accent-[#4fc3f7]" />
+          </div>
+        </div>
+        {/* Row 2: presets */}
+        <div className="flex gap-1 sm:gap-2 sm:ml-4 overflow-x-auto pb-0.5">
           {PRESETS_SIM.map((p, i) => (
             <button key={p.id} onClick={() => { setPresetIdx(i); setRunning(false); }}
-              className={`text-xs px-3 py-1 border transition-colors ${presetIdx === i ? 'border-[#4fc3f7] text-[#4fc3f7] bg-[#0d1f3a]' : 'border-[#1a2a4a] text-[#4a7a9b] hover:border-[#4fc3f7] hover:text-[#4fc3f7]'}`}
+              className={`shrink-0 text-[10px] sm:text-xs px-2 sm:px-3 py-1 border transition-colors ${presetIdx === i ? 'border-[#4fc3f7] text-[#4fc3f7] bg-[#0d1f3a]' : 'border-[#1a2a4a] text-[#4a7a9b] hover:border-[#4fc3f7] hover:text-[#4fc3f7]'}`}
               style={{ fontFamily: 'IBM Plex Mono, monospace' }}>
               {p.label}
             </button>
           ))}
-        </div>
-
-        <div className="ml-auto flex items-center gap-3">
-          <button onClick={() => setRunning(r => !r)}
-            className={`text-xs px-4 py-1 border font-bold transition-colors ${running ? 'border-[#c6ff00] text-[#c6ff00] bg-[#1a2a00]' : 'border-[#4fc3f7] text-[#4fc3f7] bg-[#0d1f3a] hover:bg-[#0d2a3a]'}`}
-            style={{ fontFamily: 'IBM Plex Mono, monospace' }}>
-            {running ? '⏸ PAUSE' : '▶ RUN'}
-          </button>
-          <button onClick={() => { initSim(presetIdx); setRunning(false); }}
-            className="text-xs px-3 py-1 border border-[#e040fb] text-[#e040fb] hover:bg-[#1a0a2a] transition-colors"
-            style={{ fontFamily: 'IBM Plex Mono, monospace' }}>
-            ↺ RESET
-          </button>
-
-          <div className="flex items-center gap-2 ml-2">
-            <span className="text-xs text-[#4a7a9b]" style={{ fontFamily: 'IBM Plex Mono' }}>SPEED</span>
-            <input type="range" min={100} max={2000} step={100} value={rewriteRate}
-              onChange={e => setRewriteRate(Number(e.target.value))}
-              className="w-20 accent-[#4fc3f7]" />
-          </div>
         </div>
       </div>
 
