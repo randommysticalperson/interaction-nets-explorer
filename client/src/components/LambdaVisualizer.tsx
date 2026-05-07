@@ -11,7 +11,7 @@
  *  - Drag-and-drop node repositioning
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   InteractionNet, NetNode, NetEdge, SerializedNet,
   applyOneStep, cloneNet, serializeNet, findActivePairs,
@@ -245,7 +245,7 @@ export default function LambdaVisualizer() {
     return () => obs.disconnect();
   }, []);
 
-  const serialized = serializeNet(net);
+  const serialized = useMemo(() => { try { return serializeNet(net); } catch { return { nodes: [], edges: [] }; } }, [net]);
   const netKey = serialized.nodes.map(n => n.id).join(',');
 
   useEffect(() => {
