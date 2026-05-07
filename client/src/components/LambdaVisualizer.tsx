@@ -14,7 +14,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   InteractionNet, NetNode, NetEdge, SerializedNet,
-  applyOneStep, cloneNet, serializeNet, findActivePairs,
+  applyOneStep, applyAllParallelSteps, cloneNet, serializeNet, findActivePairs,
   PRESETS,
 } from '@/lib/interactionNet';
 import { parseLambda, compileLambda } from '@/lib/lambdaParser';
@@ -428,7 +428,27 @@ export default function LambdaVisualizer() {
       setAutoPlay(false);
     }
   }, [net, isNormalForm]);
-
+  const doParallelStep = useCallback(() => {
+    if (isNormalForm) return;
+    const clone = cloneNet(net);
+    const result = applyAllParallelSteps(clone);
+    if (result.count === 0) {
+      setIsNormalForm(true);
+      setLastRule('Normal Form');
+      setLastDesc('No more active pairs. The net is in normal form — reduction is complete.');
+      setAutoPlay(false);
+      return;
+    }
+    setHistory(h => [...h, cloneNet(net)]);
+    setNet(clone);
+    setStepCount(s => s + result.count);
+    setLastRule(`∥ ${result.count} pair${result.count > 1 ? 's' : ''}`);
+    setLastDesc(result.description);
+    if (findActivePairs(clone).length === 0) {
+      setIsNormalForm(true);
+      setAutoPlay(false);
+    }
+  }, [net, isNormalForm]);
   const doUndo = () => {
     if (history.length === 0) return;
     const prev = history[history.length - 1];
@@ -571,6 +591,7 @@ export default function LambdaVisualizer() {
         </div>
         <div className="flex items-center gap-1">
           <button onClick={doStep} disabled={isNormalForm} className="text-[10px] px-2 py-1 bg-[#1a1a2e] text-white font-bold disabled:opacity-40">▶ STEP</button>
+          <button onClick={doParallelStep} disabled={isNormalForm} className="text-[10px] px-2 py-1 bg-[#6a1b9a] text-white font-bold disabled:opacity-40" title="Apply all disjoint active pairs simultaneously">∥ PAR</button>
           <button onClick={() => setAutoPlay(a => !a)} disabled={isNormalForm} className={`text-[10px] px-2 py-1 font-bold disabled:opacity-40 ${autoPlay ? 'bg-[#c62828] text-white' : 'bg-white text-[#1a1a2e] border border-[#1a1a2e]'}`}>{autoPlay ? '⏸' : '⏩'}</button>
           <button onClick={doUndo} disabled={history.length === 0} className="text-[10px] px-2 py-1 bg-white text-[#1a1a2e] border border-[#1a1a2e] font-bold disabled:opacity-40">↩</button>
           <button onClick={doReset} className="text-[10px] px-2 py-1 bg-white text-[#1a1a2e] border border-[#1a1a2e] font-bold">↺</button>
@@ -672,6 +693,11 @@ export default function LambdaVisualizer() {
             <button onClick={doStep} disabled={isNormalForm}
               className="w-full text-xs px-2 py-2 bg-[#1a1a2e] text-white font-bold disabled:opacity-40 hover:bg-[#333] transition-colors">
               ▶ STEP
+            </button>
+            <button onClick={doParallelStep} disabled={isNormalForm}
+              className="w-full text-xs px-2 py-2 bg-[#6a1b9a] text-white font-bold disabled:opacity-40 hover:bg-[#7b1fa2] transition-colors"
+              title="Apply all disjoint active pairs simultaneously (parallel reduction)">
+              ∥ PARALLEL STEP
             </button>
             <button onClick={() => setAutoPlay(a => !a)} disabled={isNormalForm}
               className={`w-full text-xs px-2 py-2 font-bold disabled:opacity-40 transition-colors ${autoPlay ? 'bg-[#c62828] text-white' : 'bg-white text-[#1a1a2e] border-2 border-[#1a1a2e] hover:bg-[#f0ede8]'}`}>

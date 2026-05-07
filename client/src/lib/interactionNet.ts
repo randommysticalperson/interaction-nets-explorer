@@ -415,3 +415,45 @@ export const PRESETS = [
   { id: 'selfdup', label: '(λx. x x) y — Self-Duplication', build: buildSelfDupNet },
   { id: 'ycomb', label: 'Y Combinator Structure', build: buildYCombinatorNet },
 ];
+
+/**
+ * Apply ALL disjoint active pairs simultaneously — true parallel reduction.
+ * Returns the number of pairs that fired, or 0 if the net is in normal form.
+ *
+ * Two active pairs are disjoint if they share no node IDs.
+ * We greedily select a maximal disjoint set from the list of all active pairs.
+ */
+export function applyAllParallelSteps(net: InteractionNet): {
+  count: number;
+  rules: string[];
+  description: string;
+} {
+  const allPairs = findActivePairs(net);
+  if (allPairs.length === 0) return { count: 0, rules: [], description: 'Normal form — no active pairs remain.' };
+
+  // Greedy maximal disjoint selection
+  const usedIds = new Set<string>();
+  const selectedPairs: [NetNode, NetNode][] = [];
+  for (const [a, b] of allPairs) {
+    if (!usedIds.has(a.id) && !usedIds.has(b.id)) {
+      selectedPairs.push([a, b]);
+      usedIds.add(a.id);
+      usedIds.add(b.id);
+    }
+  }
+
+  const rules: string[] = [];
+  // Apply each selected pair — since they are disjoint, order doesn't matter
+  for (const [a, b] of selectedPairs) {
+    // Re-verify both nodes still exist
+    if (!net.nodes.has(a.id) || !net.nodes.has(b.id)) continue;
+    const result = applyOneStep(net);
+    if (result) rules.push(result.rule);
+  }
+
+  const desc = selectedPairs.length === 1
+    ? `1 active pair reduced: ${rules[0] ?? 'unknown'}`
+    : `${selectedPairs.length} active pairs reduced in parallel: ${Array.from(new Set(rules)).join(', ')}`;
+
+  return { count: selectedPairs.length, rules, description: desc };
+}

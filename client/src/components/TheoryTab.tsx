@@ -30,8 +30,22 @@ function TryIt({ term, label }: { term: string; label?: string }) {
   );
 }
 
-// ─── Section data ─────────────────────────────────────────────────────────────
-const SECTIONS = [
+// ─── Types ─────────────────────────────────────────────────────────────
+type SectionContent =
+  | { type: 'quote'; text: string; attribution: string }
+  | { type: 'prose'; text: string }
+  | { type: 'grammar'; title: string; rows: { lhs: string; mid: string; rhs: string }[] }
+  | { type: 'rule'; title: string; lhsTex: string; arrow: string; rhsTex: string; note: string; tryTerm?: string }
+  | { type: 'example'; title: string; tryTerm?: string; steps: { tex: string; label: string }[] }
+  | { type: 'table'; headers: string[]; rows: { cells: string[]; tryTerm: string | null }[]; mathCols: number[] };
+type Section = {
+  id: string;
+  label: string;
+  title: string;
+  color: string;
+  content: SectionContent[];
+};
+const SECTIONS: Section[] = [
   {
     id: 'lambda',
     label: '§1',
@@ -330,16 +344,74 @@ const SECTIONS = [
       },
     ],
   },
+  {
+    id: 'affine-parallel',
+    label: '§9',
+    title: 'Affine Fixed Points & Parallel Computation',
+    color: '#6a1b9a',
+    content: [
+      {
+        type: 'quote' as const,
+        text: 'Finding the fixed point of an affine transformation T(x) = Ax + b is equivalent to solving (A - I)x = -b — the same eigenvalue-1 problem that underlies every recursive fixed-point combinator.',
+        attribution: 'Physics Forums — "Finding Fixed Points of Affine Transformations" (2008)',
+      },
+      {
+        type: 'prose' as const,
+        text: 'An affine transformation in n-dimensional space is a map T(x) = Ax + b, where A is a linear part (matrix) and b is a translation vector. A fixed point satisfies T(x) = x, which gives Ax + b = x, or equivalently (A - I)x = -b. This is a linear system — solvable when (A - I) is invertible, i.e. when 1 is not an eigenvalue of A. When 1 is an eigenvalue, the transformation has no unique fixed point: it either has infinitely many (a whole fixed subspace) or none at all.',
+      },
+      {
+        type: 'table' as const,
+        headers: ['Condition on A', 'Fixed Point Behaviour', 'Lambda Calculus Analogue'],
+        rows: [
+          { cells: ['det(A - I) ≠ 0', 'Unique fixed point x* = (I - A)⁻¹b', 'Term has a unique normal form'], tryTerm: null },
+          { cells: ['1 is eigenvalue, b in range(A-I)', 'Infinitely many fixed points (affine subspace)', 'Term is in normal form already (identity)'], tryTerm: '\\x. x' },
+          { cells: ['1 is eigenvalue, b ∉ range(A-I)', 'No fixed point exists', 'Diverging term (Ω combinator)'], tryTerm: '(\\x. x x)(\\x. x x)' },
+          { cells: ['A = I, b = 0', 'Every point is a fixed point', 'Identity function applied to itself'], tryTerm: '\\x. x' },
+          { cells: ['A = rotation, b ⊥ axis', 'Unique fixed point on rotation axis', 'Y combinator: unique fixed point f(Y f)'], tryTerm: '\\f. (\\x. f (x x))(\\x. f (x x))' },
+        ],
+        mathCols: [],
+      },
+      {
+        type: 'prose' as const,
+        text: 'The key insight from the Physics Forums thread is that finding a fixed point of an affine transformation is exactly finding an eigenvector with eigenvalue 1. This is the same condition that makes the Y combinator work: Y is the "eigenfunction" of the application operator with eigenvalue 1. The homogeneous augmented matrix trick — embedding a 2D affine map into a 3×3 matrix with bottom row [0, 0, 1] — is precisely the same as the Church encoding trick of embedding a term into a larger context to make recursion expressible.',
+      },
+      {
+        type: 'example' as const,
+        title: 'Affine Fixed Point → Interaction Net',
+        tryTerm: '\\f. (\\x. f (x x))(\\x. f (x x))',
+        steps: [
+          { tex: 'T(\mathbf{x}) = A\mathbf{x} + \mathbf{b}', label: 'Affine transformation' },
+          { tex: 'T(\mathbf{x}^*) = \mathbf{x}^* \Rightarrow (A - I)\mathbf{x}^* = -\mathbf{b}', label: 'Fixed point condition' },
+          { tex: 'Y\,f = f\,(Y\,f)', label: 'Lambda calculus fixed-point equation' },
+          { tex: '\text{eigenvalue}(A) = 1 \Leftrightarrow \text{fixed point of } f', label: 'Structural equivalence' },
+        ],
+      },
+      {
+        type: 'prose' as const,
+        text: 'Parallel computation is where interaction nets truly shine. In a standard lambda calculus evaluator, reductions must be sequenced because sharing is implicit — you cannot safely reduce two redexes simultaneously if they share a subterm. Interaction nets make sharing explicit via duplicator nodes (δ). Once sharing is explicit, any two active pairs that do not share a wire can be reduced in parallel with no coordination overhead.',
+      },
+      {
+        type: 'table' as const,
+        headers: ['Property', 'Sequential Evaluator', 'Interaction Net (Parallel)'],
+        rows: [
+          { cells: ['Sharing', 'Implicit (pointer aliasing)', 'Explicit (δ duplicator nodes)'], tryTerm: null },
+          { cells: ['Parallel safety', 'Requires locking / sequencing', 'Any two disjoint active pairs are safe'], tryTerm: null },
+          { cells: ['Work duplication', 'Possible (call-by-name)', 'Never — sharing prevents it'], tryTerm: null },
+          { cells: ['Reduction order', 'Must choose one redex at a time', 'All active pairs fire simultaneously'], tryTerm: null },
+          { cells: ['Fixed-point unfolding', 'One step at a time', 'All independent copies unfold in parallel'], tryTerm: null },
+          { cells: ['Affine map analogy', 'Iterating T one step at a time', 'Applying T to all basis vectors at once'], tryTerm: null },
+        ],
+        mathCols: [],
+      },
+      {
+        type: 'prose' as const,
+        text: 'The connection to affine transformations runs deeper: a parallel interaction net reduction can be viewed as simultaneously applying an affine map to all points in a high-dimensional space of program states. Each active pair is an independent "dimension" of computation. The fixed point of the whole system — the normal form — is the unique point where all active pairs have been annihilated, analogous to the unique fixed point x* = (I - A)⁻¹b of a contractive affine map.',
+      },
+    ],
+  },
 ];
 
-// ─── Content block types ──────────────────────────────────────────────────────
-type SectionContent =
-  | { type: 'quote'; text: string; attribution: string }
-  | { type: 'prose'; text: string }
-  | { type: 'grammar'; title: string; rows: { lhs: string; mid: string; rhs: string }[] }
-  | { type: 'rule'; title: string; lhsTex: string; arrow: string; rhsTex: string; note: string; tryTerm?: string }
-  | { type: 'example'; title: string; tryTerm?: string; steps: { tex: string; label: string }[] }
-  | { type: 'table'; headers: string[]; rows: { cells: string[]; tryTerm: string | null }[]; mathCols: number[] };
+// ─── Content block renderer ──────────────────────────────────────────────────────
 
 function SectionBlock({ item }: { item: SectionContent }) {
   if (item.type === 'quote') {
