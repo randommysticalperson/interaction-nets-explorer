@@ -212,6 +212,7 @@ export default function LambdaVisualizer() {
   const [showCustom, setShowCustom] = useState(false);
 
   const svgRef = useRef<SVGSVGElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [svgSize, setSvgSize] = useState({ w: 560, h: 420 });
 
   const [positions, setPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
@@ -234,10 +235,13 @@ export default function LambdaVisualizer() {
   useEffect(() => {
     const obs = new ResizeObserver(entries => {
       for (const e of entries) {
-        setSvgSize({ w: e.contentRect.width, h: e.contentRect.height });
+        const { width, height } = e.contentRect;
+        if (width > 0 && height > 0) {
+          setSvgSize({ w: width, h: height });
+        }
       }
     });
-    if (svgRef.current) obs.observe(svgRef.current);
+    if (canvasContainerRef.current) obs.observe(canvasContainerRef.current);
     return () => obs.disconnect();
   }, []);
 
@@ -508,307 +512,295 @@ export default function LambdaVisualizer() {
   }, [svgSize, stepCount]);
 
   const [showControls, setShowControls] = useState(false);
-
   return (
     <div className="flex flex-col h-full" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
 
       {/* ── Mobile top bar ── */}
-      <div className="md:hidden flex items-center justify-between px-3 py-2 border-b-2 border-[#1a1a2e] bg-[#faf7f2]">
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-bold text-[#1a1a2e]" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20 }}>{String(stepCount).padStart(3, '0')} STEPS</span>
+      <div className="md:hidden flex items-center justify-between px-3 py-2 border-b-2 border-[#1a1a2e] bg-[#faf7f2] shrink-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-bold text-[#1a1a2e]" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18 }}>{String(stepCount).padStart(3, '0')} STEPS</span>
           {activePairs.length > 0 && !isNormalForm && <span className="text-[10px] bg-[#c62828] text-white px-2 py-0.5 font-bold animate-pulse">{activePairs.length} ACTIVE</span>}
           {isNormalForm && <span className="text-[10px] bg-[#2e7d32] text-white px-2 py-0.5 font-bold">NORMAL FORM</span>}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <button onClick={doStep} disabled={isNormalForm} className="text-[10px] px-2 py-1 bg-[#1a1a2e] text-white font-bold disabled:opacity-40">▶ STEP</button>
           <button onClick={() => setAutoPlay(a => !a)} disabled={isNormalForm} className={`text-[10px] px-2 py-1 font-bold disabled:opacity-40 ${autoPlay ? 'bg-[#c62828] text-white' : 'bg-white text-[#1a1a2e] border border-[#1a1a2e]'}`}>{autoPlay ? '⏸' : '⏩'}</button>
-          <button onClick={() => setShowControls(v => !v)} className="text-[10px] px-2 py-1 bg-[#f0ede8] text-[#1a1a2e] border border-[#1a1a2e] font-bold">{showControls ? '▲ LESS' : '▼ MORE'}</button>
+          <button onClick={doUndo} disabled={history.length === 0} className="text-[10px] px-2 py-1 bg-white text-[#1a1a2e] border border-[#1a1a2e] font-bold disabled:opacity-40">↩</button>
+          <button onClick={doReset} className="text-[10px] px-2 py-1 bg-white text-[#1a1a2e] border border-[#1a1a2e] font-bold">↺</button>
+          <button onClick={() => setShowControls(v => !v)} className="text-[10px] px-2 py-1 bg-[#f0ede8] text-[#1a1a2e] border border-[#1a1a2e] font-bold">{showControls ? '▲' : '▼ MORE'}</button>
         </div>
       </div>
 
       {/* ── Mobile expanded controls drawer ── */}
       {showControls && (
-        <div className="md:hidden bg-[#faf7f2] border-b-2 border-[#1a1a2e] px-3 py-3 grid grid-cols-2 gap-2 text-xs">
-          <div className="col-span-2 font-bold uppercase tracking-widest text-[#888] text-[10px] border-b border-[#e0ddd8] pb-1 mb-1">PRESET</div>
-          {PRESETS.map((p, i) => (
-            <button key={p.id} onClick={() => { loadPreset(i); setShowControls(false); }}
-              className={`text-[10px] px-2 py-1.5 border text-left transition-colors ${presetIdx === i && !showCustom ? 'bg-[#1565c0] text-white border-[#1565c0]' : 'bg-white text-[#1a1a2e] border-[#1a1a2e]'}`}>
-              {p.label}
-            </button>
-          ))}
-          <button onClick={doUndo} disabled={history.length === 0} className="text-[10px] px-2 py-1.5 bg-white border border-[#1a1a2e] font-bold disabled:opacity-40">↩ UNDO</button>
-          <button onClick={doReset} className="text-[10px] px-2 py-1.5 bg-white border border-[#1a1a2e] font-bold">↺ RESET</button>
-          <button onClick={exportPng} className="col-span-2 text-[10px] px-2 py-1.5 bg-[#2e7d32] text-white font-bold">↓ EXPORT PNG</button>
-          <div className="col-span-2">
-            <input type="range" min={100} max={1500} step={100} value={speed} onChange={e => setSpeed(Number(e.target.value))} className="w-full accent-[#1565c0]" />
-            <div className="text-[10px] text-center text-[#555]">{speed}ms / step</div>
+        <div className="md:hidden bg-[#faf7f2] border-b-2 border-[#1a1a2e] px-3 py-3 shrink-0">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-[#888] border-b border-[#e0ddd8] pb-1 mb-2">PRESET</div>
+          <div className="grid grid-cols-1 gap-1 mb-2">
+            {PRESETS.map((p, i) => (
+              <button key={p.id} onClick={() => { loadPreset(i); setShowControls(false); }}
+                className={`text-[10px] px-2 py-1.5 border text-left transition-colors ${presetIdx === i && !showCustom ? 'bg-[#1565c0] text-white border-[#1565c0]' : 'bg-white text-[#1a1a2e] border-[#1a1a2e]'}`}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => setShowCustom(v => !v)}
+            className={`w-full text-[10px] px-2 py-1.5 border-2 font-bold mb-1 transition-colors ${showCustom ? 'bg-[#1a1a2e] text-white border-[#1a1a2e]' : 'bg-white text-[#1a1a2e] border-[#1a1a2e]'}`}>
+            {showCustom ? '▲ CUSTOM TERM' : '▼ CUSTOM TERM'}
+          </button>
+          {showCustom && (
+            <div className="mb-2">
+              <textarea
+                value={customInput}
+                onChange={e => { setCustomInput(e.target.value); setParseError(null); }}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { compileCustom(); setShowControls(false); } }}
+                placeholder={"e.g.  (\\x. x x) y"}
+                rows={2}
+                className="w-full text-[10px] border-2 border-[#1a1a2e] p-2 bg-white text-[#1a1a2e] resize-none outline-none"
+                style={{ fontFamily: 'IBM Plex Mono, monospace' }}
+              />
+              {parseError && <div className="text-[10px] text-[#c62828] mt-1">{parseError}</div>}
+              <button onClick={() => { compileCustom(); setShowControls(false); }}
+                className="w-full text-[10px] mt-1 px-2 py-1.5 bg-[#1565c0] text-white font-bold">⚙ COMPILE</button>
+            </div>
+          )}
+          <div className="flex gap-1">
+            <button onClick={exportPng} className="flex-1 text-[10px] px-2 py-1.5 bg-[#2e7d32] text-white font-bold">↓ PNG</button>
+            <div className="flex-1">
+              <input type="range" min={100} max={1500} step={100} value={speed} onChange={e => setSpeed(Number(e.target.value))} className="w-full accent-[#1565c0]" />
+              <div className="text-[10px] text-center text-[#555]">{speed}ms</div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ── Desktop three-panel layout ── */}
-      <div className="hidden md:flex flex-1 overflow-hidden">
-      {/* ── Left control rail ── */}
-      <div className="w-56 shrink-0 border-r-2 border-[#1a1a2e] bg-[#faf7f2] flex flex-col p-4 gap-4 overflow-y-auto">
-        <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">PRESET</div>
-          {PRESETS.map((p, i) => (
-            <button key={p.id} onClick={() => loadPreset(i)}
-              className={`w-full text-left text-xs px-2 py-2 mb-1 border transition-colors ${presetIdx === i && !showCustom ? 'bg-[#1565c0] text-white border-[#1565c0]' : 'bg-white text-[#1a1a2e] border-[#1a1a2e] hover:bg-[#e8f0fe]'}`}>
-              {p.label}
+      {/* ── Main area: sidebar + canvas (always rendered) ── */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* ── Left control rail (desktop only) ── */}
+        <div className="hidden md:flex w-56 shrink-0 border-r-2 border-[#1a1a2e] bg-[#faf7f2] flex-col p-4 gap-4 overflow-y-auto">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">PRESET</div>
+            {PRESETS.map((p, i) => (
+              <button key={p.id} onClick={() => loadPreset(i)}
+                className={`w-full text-left text-xs px-2 py-2 mb-1 border transition-colors ${presetIdx === i && !showCustom ? 'bg-[#1565c0] text-white border-[#1565c0]' : 'bg-white text-[#1a1a2e] border-[#1a1a2e] hover:bg-[#e8f0fe]'}`}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {/* Custom lambda input */}
+          <div>
+            <button
+              onClick={() => setShowCustom(v => !v)}
+              className={`w-full text-xs px-2 py-2 border-2 font-bold transition-colors ${showCustom ? 'bg-[#1a1a2e] text-white border-[#1a1a2e]' : 'bg-white text-[#1a1a2e] border-[#1a1a2e] hover:bg-[#e8f0fe]'}`}>
+              {showCustom ? '▲ CUSTOM TERM' : '▼ CUSTOM TERM'}
             </button>
-          ))}
+            {showCustom && (
+              <div className="mt-2">
+                <textarea
+                  value={customInput}
+                  onChange={e => { setCustomInput(e.target.value); setParseError(null); }}
+                  onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) compileCustom(); }}
+                  placeholder={"e.g.  (\\x. x x) y\nor  \\f. f f"}
+                  rows={3}
+                  className="w-full text-xs border-2 border-[#1a1a2e] p-2 bg-white text-[#1a1a2e] resize-none outline-none focus:border-[#1565c0]"
+                  style={{ fontFamily: 'IBM Plex Mono, monospace' }}
+                />
+                {parseError && (
+                  <div className="text-xs text-[#c62828] mt-1 leading-tight">{parseError}</div>
+                )}
+                <button onClick={compileCustom}
+                  className="w-full text-xs mt-1 px-2 py-2 bg-[#1565c0] text-white border-2 border-[#1565c0] hover:bg-[#0d47a1] font-bold transition-colors">
+                  ⚙ COMPILE
+                </button>
+                <div className="text-xs text-[#888] mt-1 leading-tight">
+                  Use <code>\x.</code> or <code>λx.</code> for lambda. Ctrl+Enter to compile.
+                </div>
+              </div>
+            )}
+          </div>
+          {/* Step controls */}
+          <div className="flex flex-col gap-2">
+            <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1">CONTROLS</div>
+            <button onClick={doStep} disabled={isNormalForm}
+              className="w-full text-xs px-2 py-2 bg-[#1a1a2e] text-white font-bold disabled:opacity-40 hover:bg-[#333] transition-colors">
+              ▶ STEP
+            </button>
+            <button onClick={() => setAutoPlay(a => !a)} disabled={isNormalForm}
+              className={`w-full text-xs px-2 py-2 font-bold disabled:opacity-40 transition-colors ${autoPlay ? 'bg-[#c62828] text-white' : 'bg-white text-[#1a1a2e] border-2 border-[#1a1a2e] hover:bg-[#f0ede8]'}`}>
+              {autoPlay ? '⏸ PAUSE' : '⏩ AUTO'}
+            </button>
+            <div className="flex gap-1">
+              <button onClick={doUndo} disabled={history.length === 0}
+                className="flex-1 text-xs px-2 py-2 bg-white text-[#1a1a2e] border-2 border-[#1a1a2e] font-bold disabled:opacity-40 hover:bg-[#f0ede8] transition-colors">
+                ↩ UNDO
+              </button>
+              <button onClick={doReset}
+                className="flex-1 text-xs px-2 py-2 bg-white text-[#1a1a2e] border-2 border-[#1a1a2e] font-bold hover:bg-[#f0ede8] transition-colors">
+                ↺ RESET
+              </button>
+            </div>
+            <button onClick={exportPng}
+              className="w-full text-xs px-2 py-2 bg-[#2e7d32] text-white font-bold hover:bg-[#1b5e20] transition-colors">
+              ↓ EXPORT PNG
+            </button>
+          </div>
+          {/* Speed */}
+          <div>
+            <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-2">SPEED</div>
+            <input type="range" min={100} max={1500} step={100} value={speed}
+              onChange={e => setSpeed(Number(e.target.value))}
+              className="w-full accent-[#1565c0]" />
+            <div className="text-xs text-center text-[#555] mt-1">{speed}ms / step</div>
+          </div>
+          {/* Legend */}
+          <div>
+            <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-2">LEGEND</div>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-4 h-4 rounded-full" style={{ background: '#1565c0' }} />
+              <span className="text-xs text-[#1a1a2e]">γ Constructor</span>
+            </div>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-4 h-4 rotate-45" style={{ background: '#f9a825' }} />
+              <span className="text-xs text-[#1a1a2e]">δ Duplicator</span>
+            </div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-4 h-4 rounded-full" style={{ background: '#c62828' }} />
+              <span className="text-xs text-[#1a1a2e]">ε Eraser</span>
+            </div>
+            <div className="text-xs text-[#888] leading-relaxed border-t border-[#e0ddd8] pt-2">
+              <span className="font-bold text-[#1a1a2e]">Drag</span> any node to reposition it.
+            </div>
+          </div>
         </div>
 
-        {/* Custom lambda input */}
-        <div>
-          <button
-            onClick={() => setShowCustom(v => !v)}
-            className={`w-full text-xs px-2 py-2 border-2 font-bold transition-colors ${showCustom ? 'bg-[#1a1a2e] text-white border-[#1a1a2e]' : 'bg-white text-[#1a1a2e] border-[#1a1a2e] hover:bg-[#e8f0fe]'}`}>
-            {showCustom ? '▲ CUSTOM TERM' : '▼ CUSTOM TERM'}
-          </button>
-          {showCustom && (
-            <div className="mt-2">
-              <textarea
-                value={customInput}
-                onChange={e => { setCustomInput(e.target.value); setParseError(null); }}
-                onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) compileCustom(); }}
-                placeholder={"e.g.  (\\x. x x) y\nor  \\f. f f"}
-                rows={3}
-                className="w-full text-xs border-2 border-[#1a1a2e] p-2 bg-white text-[#1a1a2e] resize-none outline-none focus:border-[#1565c0]"
-                style={{ fontFamily: 'IBM Plex Mono, monospace' }}
-              />
-              {parseError && (
-                <div className="text-xs text-[#c62828] mt-1 leading-tight">{parseError}</div>
-              )}
-              <button onClick={compileCustom}
-                className="w-full text-xs mt-1 px-2 py-2 bg-[#1565c0] text-white border-2 border-[#1565c0] hover:bg-[#0d47a1] font-bold transition-colors">
-                ⚙ COMPILE
-              </button>
-              <div className="text-xs text-[#888] mt-1 leading-tight">
-                Use <code>\x.</code> or <code>λx.</code> for lambda. Ctrl+Enter to compile.
-              </div>
+        {/* ── Center canvas (ALWAYS rendered, single ref) ── */}
+        <div ref={canvasContainerRef} className="flex-1 relative bg-[#faf7f2] overflow-hidden select-none">
+          {/* Desktop step counter */}
+          <div className="hidden md:block absolute top-3 left-4 z-10 pointer-events-none" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+            <span className="text-6xl text-[#1a1a2e] leading-none">{String(stepCount).padStart(3, '0')}</span>
+            <span className="text-xs text-[#888] ml-2 font-mono uppercase tracking-wider">STEPS</span>
+          </div>
+          {/* Mobile node count */}
+          <div className="md:hidden absolute top-2 left-3 z-10 pointer-events-none">
+            <span className="text-xs text-[#888] uppercase tracking-wider">{serialized.nodes.length} nodes · {serialized.edges.length} edges</span>
+          </div>
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+            <span className="text-xs text-[#bbb] uppercase tracking-widest" style={{ fontFamily: 'IBM Plex Mono' }}>
+              {draggingId ? '⠿ DRAGGING' : '⠿ DRAG NODES TO REARRANGE'}
+            </span>
+          </div>
+          {isNormalForm && (
+            <div className="absolute top-3 right-4 z-10 bg-[#2e7d32] text-white text-xs px-3 py-1 font-bold uppercase tracking-widest">
+              NORMAL FORM
             </div>
           )}
+          {activePairs.length > 0 && !isNormalForm && (
+            <div className="hidden md:block absolute top-3 right-4 z-10 bg-[#c62828] text-white text-xs px-3 py-1 font-bold uppercase tracking-widest animate-pulse">
+              {activePairs.length} ACTIVE PAIR{activePairs.length > 1 ? 'S' : ''}
+            </div>
+          )}
+          <svg
+            ref={svgRef}
+            width="100%"
+            height="100%"
+            className="absolute inset-0"
+            style={{ cursor: draggingId ? 'grabbing' : 'default' }}
+          >
+            <defs>
+              <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#1a1a2e" opacity="0.6" />
+              </marker>
+              <marker id="arrowhead-active" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#c62828" />
+              </marker>
+            </defs>
+            <line x1="0" y1={svgSize.h * 0.15} x2={svgSize.w * 0.08} y2="0" stroke="#e0ddd8" strokeWidth="1" />
+            <line x1={svgSize.w * 0.92} y1={svgSize.h} x2={svgSize.w} y2={svgSize.h * 0.85} stroke="#e0ddd8" strokeWidth="1" />
+            {/* Edges */}
+            {serialized.edges.map((edge, i) => {
+              const from = positions.get(edge.from.nodeId);
+              const to = positions.get(edge.to.nodeId);
+              if (!from || !to) return null;
+              const isActivePairEdge = edge.from.portIndex === 0 && edge.to.portIndex === 0;
+              const color = isActivePairEdge ? '#c62828' : '#1a1a2e';
+              const opacity = isActivePairEdge ? 1 : 0.5;
+              const sw = isActivePairEdge ? 2.5 : 1.5;
+              const mx = (from.x + to.x) / 2;
+              const my = (from.y + to.y) / 2 - 20;
+              return (
+                <path
+                  key={i}
+                  d={`M ${from.x} ${from.y} Q ${mx} ${my} ${to.x} ${to.y}`}
+                  stroke={color}
+                  strokeWidth={sw}
+                  fill="none"
+                  opacity={opacity}
+                  markerEnd={isActivePairEdge ? 'url(#arrowhead-active)' : 'url(#arrowhead)'}
+                  strokeDasharray={isActivePairEdge ? '6 3' : undefined}
+                  style={{ pointerEvents: 'none', transition: 'all 0.3s ease' }}
+                />
+              );
+            })}
+            {/* Nodes */}
+            {serialized.nodes.map(node => {
+              const pos = positions.get(node.id);
+              if (!pos) return null;
+              return (
+                <NodeShape
+                  key={node.id}
+                  node={node}
+                  pos={pos}
+                  isActive={activeIds.has(node.id)}
+                  isDragging={draggingId === node.id}
+                  isNew={newNodeIds.has(node.id)}
+                  onMouseDown={handleNodeMouseDown}
+                  onTouchStart={handleNodeTouchStart}
+                />
+              );
+            })}
+          </svg>
         </div>
 
-        <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">CONTROLS</div>
-          <button onClick={doStep} disabled={isNormalForm}
-            className="w-full text-xs px-3 py-2 mb-2 bg-[#1a1a2e] text-white border-2 border-[#1a1a2e] hover:bg-[#1565c0] disabled:opacity-40 transition-colors font-bold">
-            ▶ STEP
-          </button>
-          <button onClick={() => setAutoPlay(a => !a)} disabled={isNormalForm}
-            className={`w-full text-xs px-3 py-2 mb-2 border-2 border-[#1a1a2e] font-bold transition-colors disabled:opacity-40 ${autoPlay ? 'bg-[#c62828] text-white' : 'bg-white text-[#1a1a2e] hover:bg-[#fce8e8]'}`}>
-            {autoPlay ? '⏸ PAUSE' : '⏩ AUTO'}
-          </button>
-          <button onClick={doUndo} disabled={history.length === 0}
-            className="w-full text-xs px-3 py-2 mb-2 bg-white text-[#1a1a2e] border-2 border-[#1a1a2e] hover:bg-[#f5f5f5] disabled:opacity-40 transition-colors font-bold">
-            ↩ UNDO
-          </button>
-          <button onClick={doReset}
-            className="w-full text-xs px-3 py-2 mb-2 bg-white text-[#1a1a2e] border-2 border-[#1a1a2e] hover:bg-[#f5f5f5] transition-colors font-bold">
-            ↺ RESET
-          </button>
-          <button onClick={exportPng}
-            className="w-full text-xs px-3 py-2 bg-[#2e7d32] text-white border-2 border-[#2e7d32] hover:bg-[#1b5e20] transition-colors font-bold">
-            ↓ EXPORT PNG
-          </button>
-        </div>
-
-        <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-2">SPEED</div>
-          <input type="range" min={100} max={1500} step={100} value={speed}
-            onChange={e => setSpeed(Number(e.target.value))}
-            className="w-full accent-[#1565c0]" />
-          <div className="text-xs text-center text-[#555] mt-1">{speed}ms / step</div>
-        </div>
-
-        <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-2">LEGEND</div>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-4 h-4 rounded-full" style={{ background: '#1565c0' }} />
-            <span className="text-xs text-[#1a1a2e]">γ Constructor</span>
+        {/* ── Right info panel (desktop only) ── */}
+        <div className="hidden md:flex w-64 shrink-0 border-l-2 border-[#1a1a2e] bg-[#faf7f2] flex-col p-4 gap-4 overflow-y-auto">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">LAST RULE</div>
+            <div className="text-sm font-bold text-[#1565c0] mb-2">{lastRule}</div>
+            <div className="text-xs text-[#444] leading-relaxed">{lastDesc}</div>
           </div>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-4 h-4 rotate-45" style={{ background: '#f9a825' }} />
-            <span className="text-xs text-[#1a1a2e]">δ Duplicator</span>
+          <div>
+            <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">REWRITE RULES</div>
+            <div className="text-xs text-[#444] leading-relaxed space-y-2">
+              <div><span className="font-bold text-[#1565c0]">γ-γ annihilation:</span> Two constructors cancel, connecting aux ports.</div>
+              <div><span className="font-bold text-[#f9a825]">δ-δ annihilation:</span> Two duplicators cancel similarly.</div>
+              <div><span className="font-bold text-[#c62828]">ε-ε annihilation:</span> Two erasers vanish.</div>
+              <div><span className="font-bold text-[#888]">γ-δ commutation:</span> Constructor and duplicator swap, creating 4 new nodes — optimal sharing.</div>
+              <div><span className="font-bold text-[#888]">ε-γ/δ commutation:</span> Eraser propagates into all auxiliary ports.</div>
+            </div>
           </div>
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-4 h-4 rounded-full" style={{ background: '#c62828' }} />
-            <span className="text-xs text-[#1a1a2e]">ε Eraser</span>
+          <div>
+            <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">SYNTAX GUIDE</div>
+            <div className="text-xs text-[#444] leading-relaxed space-y-1">
+              <div><code className="bg-[#eee] px-1">\x. body</code> — abstraction</div>
+              <div><code className="bg-[#eee] px-1">f a</code> — application</div>
+              <div><code className="bg-[#eee] px-1">(f a) b</code> — grouping</div>
+              <div><code className="bg-[#eee] px-1">\x y. x</code> — multi-arg</div>
+            </div>
           </div>
-          <div className="text-xs text-[#888] leading-relaxed border-t border-[#e0ddd8] pt-2">
-            <span className="font-bold text-[#1a1a2e]">Drag</span> any node to reposition it.
-          </div>
-        </div>
-      </div>
-
-      {/* ── Center canvas ── */}
-      <div className="flex-1 relative bg-[#faf7f2] overflow-hidden select-none">
-        <div className="absolute top-3 left-4 z-10 pointer-events-none" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
-          <span className="text-6xl text-[#1a1a2e] leading-none">{String(stepCount).padStart(3, '0')}</span>
-          <span className="text-xs text-[#888] ml-2 font-mono uppercase tracking-wider">STEPS</span>
-        </div>
-
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-          <span className="text-xs text-[#bbb] uppercase tracking-widest" style={{ fontFamily: 'IBM Plex Mono' }}>
-            {draggingId ? '⠿ DRAGGING' : '⠿ DRAG NODES TO REARRANGE'}
-          </span>
-        </div>
-
-        {isNormalForm && (
-          <div className="absolute top-3 right-4 z-10 bg-[#2e7d32] text-white text-xs px-3 py-1 font-bold uppercase tracking-widest">
-            NORMAL FORM
-          </div>
-        )}
-        {activePairs.length > 0 && !isNormalForm && (
-          <div className="absolute top-3 right-4 z-10 bg-[#c62828] text-white text-xs px-3 py-1 font-bold uppercase tracking-widest animate-pulse">
-            {activePairs.length} ACTIVE PAIR{activePairs.length > 1 ? 'S' : ''}
-          </div>
-        )}
-
-        <svg
-          ref={svgRef}
-          width="100%"
-          height="100%"
-          className="absolute inset-0"
-          style={{ cursor: draggingId ? 'grabbing' : 'default' }}
-        >
-          <defs>
-            <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-              <polygon points="0 0, 8 3, 0 6" fill="#1a1a2e" opacity="0.6" />
-            </marker>
-            <marker id="arrowhead-active" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-              <polygon points="0 0, 8 3, 0 6" fill="#c62828" />
-            </marker>
-          </defs>
-
-          <line x1="0" y1={svgSize.h * 0.15} x2={svgSize.w * 0.08} y2="0" stroke="#e0ddd8" strokeWidth="1" />
-          <line x1={svgSize.w * 0.92} y1={svgSize.h} x2={svgSize.w} y2={svgSize.h * 0.85} stroke="#e0ddd8" strokeWidth="1" />
-
-          {/* Edges */}
-          {serialized.edges.map((edge, i) => {
-            const from = positions.get(edge.from.nodeId);
-            const to = positions.get(edge.to.nodeId);
-            if (!from || !to) return null;
-            const isActivePairEdge = edge.from.portIndex === 0 && edge.to.portIndex === 0;
-            const color = isActivePairEdge ? '#c62828' : '#1a1a2e';
-            const opacity = isActivePairEdge ? 1 : 0.5;
-            const sw = isActivePairEdge ? 2.5 : 1.5;
-            const mx = (from.x + to.x) / 2;
-            const my = (from.y + to.y) / 2 - 20;
-            return (
-              <path
-                key={i}
-                d={`M ${from.x} ${from.y} Q ${mx} ${my} ${to.x} ${to.y}`}
-                stroke={color}
-                strokeWidth={sw}
-                fill="none"
-                opacity={opacity}
-                markerEnd={isActivePairEdge ? 'url(#arrowhead-active)' : 'url(#arrowhead)'}
-                strokeDasharray={isActivePairEdge ? '6 3' : undefined}
-                style={{ pointerEvents: 'none', transition: 'all 0.3s ease' }}
-              />
-            );
-          })}
-
-          {/* Nodes */}
-          {serialized.nodes.map(node => {
-            const pos = positions.get(node.id);
-            if (!pos) return null;
-            return (
-              <NodeShape
-                key={node.id}
-                node={node}
-                pos={pos}
-                isActive={activeIds.has(node.id)}
-                isDragging={draggingId === node.id}
-                isNew={newNodeIds.has(node.id)}
-                onMouseDown={handleNodeMouseDown}
-                onTouchStart={handleNodeTouchStart}
-              />
-            );
-          })}
-
-          <text x={svgSize.w - 10} y={svgSize.h - 10} textAnchor="end" fontSize={10}
-            fill="#aaa" fontFamily="IBM Plex Mono, monospace" style={{ pointerEvents: 'none' }}>
-            {serialized.nodes.length} nodes · {serialized.edges.length} edges
-          </text>
-        </svg>
-      </div>
-
-      {/* ── Right info panel ── */}
-      <div className="w-52 shrink-0 border-l-2 border-[#1a1a2e] bg-[#faf7f2] flex flex-col p-4 gap-4 overflow-y-auto hidden lg:flex">
-        <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">LAST RULE</div>
-          <div className="text-sm font-bold text-[#1565c0] mb-2">{lastRule}</div>
-          <div className="text-xs text-[#444] leading-relaxed">{lastDesc}</div>
-        </div>
-
-        <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">REWRITE RULES</div>
-          <div className="text-xs text-[#444] leading-relaxed space-y-2">
-            <div><span className="font-bold text-[#1565c0]">γ-γ annihilation:</span> Two constructors cancel, connecting aux ports.</div>
-            <div><span className="font-bold text-[#f9a825]">δ-δ annihilation:</span> Two duplicators cancel similarly.</div>
-            <div><span className="font-bold text-[#c62828]">ε-ε annihilation:</span> Two erasers vanish.</div>
-            <div><span className="font-bold text-[#888]">γ-δ commutation:</span> Constructor and duplicator swap, creating 4 new nodes — optimal sharing.</div>
-            <div><span className="font-bold text-[#888]">ε-γ/δ commutation:</span> Eraser propagates into all auxiliary ports.</div>
+          <div>
+            <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">ABOUT</div>
+            <div className="text-xs text-[#444] leading-relaxed">
+              Interaction Nets were introduced by Yves Lafont (1990). The Y combinator creates a self-referential loop via a Fanout (δ) tree — exactly the structure in the original diagram.
+            </div>
           </div>
         </div>
 
-        <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">SYNTAX GUIDE</div>
-          <div className="text-xs text-[#444] leading-relaxed space-y-1">
-            <div><code className="bg-[#eee] px-1">\x. body</code> — abstraction</div>
-            <div><code className="bg-[#eee] px-1">f a</code> — application</div>
-            <div><code className="bg-[#eee] px-1">(f a) b</code> — grouping</div>
-            <div><code className="bg-[#eee] px-1">\x y. x</code> — multi-arg</div>
-          </div>
-        </div>
-
-        <div>
-          <div className="text-xs font-bold uppercase tracking-widest text-[#1a1a2e] border-b-2 border-[#1a1a2e] pb-1 mb-3">ABOUT</div>
-          <div className="text-xs text-[#444] leading-relaxed">
-            Interaction Nets were introduced by Yves Lafont (1990). The Y combinator creates a self-referential loop via a Fanout (δ) tree — exactly the structure in the original diagram.
-          </div>
-        </div>
-      </div>
-      </div>{/* end desktop three-panel */}
-
-      {/* ── Mobile canvas (full width) ── */}
-      <div className="md:hidden flex-1 relative bg-[#faf7f2] overflow-hidden select-none">
-        <div className="absolute top-2 left-3 z-10 pointer-events-none">
-          <span className="text-xs text-[#888] uppercase tracking-wider">{serialized.nodes.length} nodes · {serialized.edges.length} edges</span>
-        </div>
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-          <span className="text-[10px] text-[#bbb] uppercase tracking-widest">{draggingId ? '⠿ DRAGGING' : '⠿ DRAG TO REARRANGE'}</span>
-        </div>
-        <svg ref={svgRef} width="100%" height="100%" className="absolute inset-0" style={{ cursor: draggingId ? 'grabbing' : 'default' }}>
-          <defs>
-            <marker id="arrowhead-m" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#1a1a2e" opacity="0.6" /></marker>
-            <marker id="arrowhead-active-m" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#c62828" /></marker>
-          </defs>
-          {serialized.edges.map((edge, i) => {
-            const from = positions.get(edge.from.nodeId);
-            const to = positions.get(edge.to.nodeId);
-            if (!from || !to) return null;
-            const isActive = edge.from.portIndex === 0 && edge.to.portIndex === 0;
-            const mx = (from.x + to.x) / 2;
-            const my = (from.y + to.y) / 2 - 20;
-            return <path key={i} d={`M ${from.x} ${from.y} Q ${mx} ${my} ${to.x} ${to.y}`} stroke={isActive ? '#c62828' : '#1a1a2e'} strokeWidth={isActive ? 2.5 : 1.5} fill="none" opacity={isActive ? 1 : 0.5} markerEnd={isActive ? 'url(#arrowhead-active-m)' : 'url(#arrowhead-m)'} strokeDasharray={isActive ? '6 3' : undefined} style={{ pointerEvents: 'none' }} />;
-          })}
-          {serialized.nodes.map(node => {
-            const pos = positions.get(node.id);
-            if (!pos) return null;
-            return <NodeShape key={node.id} node={node} pos={pos} isActive={activeIds.has(node.id)} isDragging={draggingId === node.id} isNew={newNodeIds.has(node.id)} onMouseDown={handleNodeMouseDown} onTouchStart={handleNodeTouchStart} />;
-          })}
-        </svg>
-      </div>
+      </div>{/* end main area */}
 
       {/* ── Mobile last rule info ── */}
       {lastRule !== '—' && (
-        <div className="md:hidden border-t-2 border-[#1a1a2e] bg-[#faf7f2] px-3 py-2">
+        <div className="md:hidden border-t-2 border-[#1a1a2e] bg-[#faf7f2] px-3 py-2 shrink-0">
           <span className="text-[10px] font-bold text-[#1565c0] uppercase tracking-wider">{lastRule}: </span>
           <span className="text-[10px] text-[#444]">{lastDesc}</span>
         </div>
