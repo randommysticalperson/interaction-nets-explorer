@@ -60,10 +60,11 @@ function computeForceLayout(
     }
   });
 
-  const REPULSION = 4000;
+  const REPULSION = 6000;
   const ATTRACTION = 0.04;
   const DAMPING = 0.85;
-  const ITERATIONS = 80;
+  const ITERATIONS = 120;
+  const MIN_DIST = NODE_RADIUS * 2 + 20;
 
   for (let iter = 0; iter < ITERATIONS; iter++) {
     const nodeArr = Array.from(pos.entries());
@@ -74,6 +75,12 @@ function computeForceLayout(
         const dx = a.x - b.x;
         const dy = a.y - b.y;
         const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
+        if (dist < MIN_DIST) {
+          const overlap = (MIN_DIST - dist) * 0.5;
+          const nx = dx / dist; const ny = dy / dist;
+          a.x += nx * overlap; a.y += ny * overlap;
+          b.x -= nx * overlap; b.y -= ny * overlap;
+        }
         const force = REPULSION / (dist * dist);
         a.vx += (dx / dist) * force; a.vy += (dy / dist) * force;
         b.vx -= (dx / dist) * force; b.vy -= (dy / dist) * force;
@@ -342,8 +349,33 @@ export default function LambdaVisualizer() {
   }, [getSvgPoint, svgSize]);
 
   const handleDragEnd = useCallback(() => {
+    const droppedId = dragRef.current?.nodeId ?? null;
     dragRef.current = null;
     setDraggingId(null);
+    if (!droppedId) return;
+    // After drop: resolve any overlaps by nudging the dropped node away from others
+    setPositions(prev => {
+      const next = new Map(prev);
+      const dropped = next.get(droppedId);
+      if (!dropped) return prev;
+      const MIN = NODE_RADIUS * 2 + 16;
+      let changed = false;
+      for (const [otherId, other] of Array.from(next.entries())) {
+        if (otherId === droppedId) continue;
+        const dx = dropped.x - other.x;
+        const dy = dropped.y - other.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
+        if (dist < MIN) {
+          const push = (MIN - dist) + 4;
+          const nx = dist < 1 ? 1 : dx / dist;
+          const ny = dist < 1 ? 0 : dy / dist;
+          next.set(droppedId, { x: dropped.x + nx * push, y: dropped.y + ny * push });
+          changed = true;
+          break;
+        }
+      }
+      return changed ? next : prev;
+    });
   }, []);
 
   useEffect(() => {
