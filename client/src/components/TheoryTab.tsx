@@ -265,6 +265,71 @@ const SECTIONS = [
       },
     ],
   },
+  {
+    id: 'dyson',
+    label: '§8',
+    title: 'Dyson Equation & Fixed Points',
+    color: '#2e7d32',
+    content: [
+      {
+        type: 'quote' as const,
+        text: 'The Dyson equation G = G₀ + G₀ΣG is a fixed-point equation: the dressed propagator G appears on both sides, just as Y f = f (Y f) defines recursion in the lambda calculus.',
+        attribution: 'Structural analogy — QFT meets computation theory',
+      },
+      {
+        type: 'prose' as const,
+        text: 'In quantum field theory, the Dyson equation describes how a bare particle G₀ acquires corrections through interactions with its environment. The self-energy Σ encodes all possible interaction diagrams. The equation G = G₀ + G₀ΣG is self-referential: G appears on both sides. This is precisely the structure of a fixed-point equation.',
+      },
+      {
+        type: 'table' as const,
+        headers: ['Quantum Field Theory', 'Lambda Calculus / Interaction Nets'],
+        rows: [
+          { cells: ['Dressed propagator G', 'Fixed point Y f'], tryTerm: null },
+          { cells: ['Bare propagator G₀', 'Identity / base case'], tryTerm: null },
+          { cells: ['Self-energy Σ', 'Recursive body f'], tryTerm: null },
+          { cells: ['G = G₀ + G₀ΣG', 'Y f = f (Y f)'], tryTerm: null },
+          { cells: ['Feynman diagram', 'Interaction net graph'], tryTerm: null },
+          { cells: ['Perturbative expansion', 'Sequence of rewrite steps'], tryTerm: null },
+          { cells: ['Vertex (interaction point)', 'Active pair (principal-to-principal)'], tryTerm: null },
+          { cells: ['Electron propagator line', 'Wire between ports'], tryTerm: null },
+          { cells: ['Loop diagram (self-energy)', 'Duplicator δ creating a cycle'], tryTerm: null },
+          { cells: ['Renormalisation', 'Normal form (no active pairs remain)'], tryTerm: null },
+        ],
+        mathCols: [],
+      },
+      {
+        type: 'prose' as const,
+        text: 'The perturbative expansion of the Dyson equation generates an infinite series of Feynman diagrams: G = G₀ + G₀ΣG₀ + G₀ΣG₀ΣG₀ + ⋯. Each term adds one more self-energy insertion. In interaction net terms, this is exactly the unfolding of a fixed-point combinator: Y f → f(Y f) → f(f(Y f)) → ⋯, where each step is one β-reduction.',
+      },
+      {
+        type: 'example' as const,
+        title: 'Dyson Fixed-Point Unfolding',
+        tryTerm: '(\\f. f f) (\\x. x)',
+        steps: [
+          { tex: 'G = G_0 + G_0 \\Sigma G', label: 'Dyson equation (fixed-point form)' },
+          { tex: 'G = G_0 + G_0 \\Sigma (G_0 + G_0 \\Sigma G)', label: 'Substitute G on the right' },
+          { tex: 'G = G_0 + G_0 \\Sigma G_0 + G_0 \\Sigma G_0 \\Sigma G_0 + \\cdots', label: 'Perturbative expansion (infinite series)' },
+          { tex: 'Y\\,f = f(Y\\,f) = f(f(Y\\,f)) = \\cdots', label: 'Exact same structure in lambda calculus' },
+        ],
+      },
+      {
+        type: 'prose' as const,
+        text: 'The Fanout Tree in the interaction net diagram of the Y combinator plays the same role as the self-energy loop in a Feynman diagram: it is the structure that enables self-interaction. The blue Syntactic Tree corresponds to the bare propagator G₀, and the red Lambda Node is the vertex where the interaction fires — the active pair that triggers the next rewrite step.',
+      },
+      {
+        type: 'table' as const,
+        headers: ['Diagram Element', 'Interaction Net', 'Feynman Diagram'],
+        rows: [
+          { cells: ['Self-referential structure', 'Fanout Tree (yellow δ nodes)', 'Self-energy loop Σ'], tryTerm: null },
+          { cells: ['Base propagation', 'Syntactic Tree (blue γ nodes)', 'Bare propagator G₀'], tryTerm: null },
+          { cells: ['Interaction vertex', 'Lambda Node (red ε / active pair)', 'Vertex point •'], tryTerm: null },
+          { cells: ['Reduction fires', 'Active pair rewrites', 'Diagram contributes to amplitude'], tryTerm: null },
+          { cells: ['Normal form reached', 'No active pairs remain', 'Series converges / renormalised'], tryTerm: null },
+        ],
+        mathCols: [],
+      },
+    ],
+  },
 ];
 
 // ─── Content block types ──────────────────────────────────────────────────────
