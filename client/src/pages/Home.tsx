@@ -12,6 +12,7 @@ import LambdaVisualizer from '@/components/LambdaVisualizer';
 import ChemSim from '@/components/ChemSim';
 import BenchmarkTab from '@/components/BenchmarkTab';
 import TheoryTab from '@/components/TheoryTab';
+import FixedPointTab from '@/components/FixedPointTab';
 
 const TABS = [
   {
@@ -42,6 +43,13 @@ const TABS = [
     description: 'Compare interaction net reduction against naive evaluation',
     color: '#f9a825',
   },
+  {
+    id: 'fixedpoint',
+    label: '04 — FIXED POINT',
+    mobileLabel: 'x_{n+1}',
+    description: 'Animate x_{n+1}=f(x_n) cobweb iteration for any f',
+    color: '#2e7d32',
+  },
 ];
 
 function HomeInner() {
@@ -51,7 +59,7 @@ function HomeInner() {
   useEffect(() => {
     const onHashChange = () => {
       const hash = window.location.hash.replace('#', '');
-      if (['theory', 'visualizer', 'chemsim', 'benchmark'].includes(hash)) {
+      if (['theory', 'visualizer', 'chemsim', 'benchmark', 'fixedpoint'].includes(hash)) {
         setActiveTab(hash);
       }
     };
@@ -153,6 +161,7 @@ function HomeInner() {
         {activeTab === 'visualizer' && <LambdaVisualizer />}
         {activeTab === 'chemsim' && <ChemSim />}
         {activeTab === 'benchmark' && <BenchmarkTab />}
+        {activeTab === 'fixedpoint' && <FixedPointTab />}
       </main>
 
       {/* ── Footer ── */}
