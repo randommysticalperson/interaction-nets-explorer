@@ -74,9 +74,9 @@ function netToSim(net: InteractionNet, w: number, h: number): { simNodes: SimNod
 }
 
 const PRESETS_SIM = [
+  { id: 'identity', label: 'Identity  f(x)=x', build: buildIdentityNet },
   { id: 'ycomb', label: 'Y Combinator', build: buildYCombinatorNet },
   { id: 'selfdup', label: 'Self-Duplication', build: buildSelfDupNet },
-  { id: 'identity', label: 'Identity', build: buildIdentityNet },
   { id: 'random', label: 'Random Net', build: () => buildRandomNet() },
 ];
 
