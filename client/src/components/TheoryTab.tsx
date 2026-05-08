@@ -410,27 +410,9 @@ const SECTIONS: Section[] = [
         ],
         mathCols: [],
       },
-      {
-        type: 'prose' as const,
-        text: 'Parallel computation is where interaction nets truly shine. In a standard lambda calculus evaluator, reductions must be sequenced because sharing is implicit — you cannot safely reduce two redexes simultaneously if they share a subterm. Interaction nets make sharing explicit via duplicator nodes (δ). Once sharing is explicit, any two active pairs that do not share a wire can be reduced in parallel with no coordination overhead.',
-      },
-      {
-        type: 'table' as const,
-        headers: ['Property', 'Sequential Evaluator', 'Interaction Net (Parallel)'],
-        rows: [
-          { cells: ['Sharing', 'Implicit (pointer aliasing)', 'Explicit (δ duplicator nodes)'], tryTerm: null },
-          { cells: ['Parallel safety', 'Requires locking / sequencing', 'Any two disjoint active pairs are safe'], tryTerm: null },
-          { cells: ['Work duplication', 'Possible (call-by-name)', 'Never — sharing prevents it'], tryTerm: null },
-          { cells: ['Reduction order', 'Must choose one redex at a time', 'All active pairs fire simultaneously'], tryTerm: null },
-          { cells: ['Fixed-point unfolding', 'One step at a time', 'All independent copies unfold in parallel'], tryTerm: null },
-          { cells: ['Affine map analogy', 'Iterating T one step at a time', 'Applying T to all basis vectors at once'], tryTerm: null },
-        ],
-        mathCols: [],
-      },
-      {
-        type: 'prose' as const,
-        text: 'The connection to affine transformations runs deeper: a parallel interaction net reduction can be viewed as simultaneously applying an affine map to all points in a high-dimensional space of program states. Each active pair is an independent "dimension" of computation. The fixed point of the whole system — the normal form — is the unique point where all active pairs have been annihilated, analogous to the unique fixed point x* = (I - A)⁻¹b of a contractive affine map.',
-      },
+
+
+
     ],
   },
 ];

@@ -305,7 +305,14 @@ export default function ChemSim() {
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-3 sm:px-4 py-2 border-b border-[#1a2a4a] bg-[#080f1e]">
         {/* Row 1: title + run/reset/speed */}
         <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
-          <div style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-[#4fc3f7] text-xl sm:text-2xl tracking-widest shrink-0">CHEM SIM</div>
+          <div className="flex flex-col">
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-[#4fc3f7] text-xl sm:text-2xl tracking-widest shrink-0">CHEM SIM</div>
+            <div className="text-[10px] text-[#4a6a8a] leading-tight" style={{ fontFamily: 'IBM Plex Mono, monospace' }}>
+              Based on{' '}
+              <a href="https://chorasimilarity.wordpress.com/chemlambda-v2/" target="_blank" rel="noopener noreferrer" className="text-[#4fc3f7] hover:underline">Chemlambda</a>
+              {' '}by M. Buliga (2013–)
+            </div>
+          </div>
           <div className="ml-auto sm:ml-0 flex items-center gap-2">
             <button onClick={() => setRunning(r => !r)}
               className={`text-xs px-3 py-1 border font-bold transition-colors ${running ? 'border-[#c6ff00] text-[#c6ff00] bg-[#1a2a00]' : 'border-[#4fc3f7] text-[#4fc3f7] bg-[#0d1f3a] hover:bg-[#0d2a3a]'}`}
