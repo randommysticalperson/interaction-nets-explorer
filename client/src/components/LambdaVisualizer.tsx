@@ -19,7 +19,6 @@ import {
 } from '@/lib/interactionNet';
 import { parseLambda, compileLambda } from '@/lib/lambdaParser';
 import { useTab } from '@/contexts/TabContext';
-import IdentityAnimation from './IdentityAnimation';
 
 const NODE_COLORS: Record<string, string> = {
   constructor: '#1565c0',
@@ -868,10 +867,7 @@ export default function LambdaVisualizer() {
               Interaction Nets were introduced by Yves Lafont (1990). The Y combinator creates a self-referential loop via a Fanout (δ) tree — exactly the structure in the original diagram.
             </div>
           </div>
-          {/* Identity animation — always visible in the right panel */}
-          <div className="border-t-2 border-[#1a1a2e] pt-3">
-            <IdentityAnimation />
-          </div>
+
         </div>
 
       </div>{/* end main area */}
