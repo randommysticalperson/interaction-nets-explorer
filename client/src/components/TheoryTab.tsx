@@ -347,7 +347,7 @@ const SECTIONS: Section[] = [
   {
     id: 'affine-parallel',
     label: '§9',
-    title: 'Affine Fixed Points & Parallel Computation',
+    title: 'Affine Fixed Points',
     color: '#6a1b9a',
     content: [
       {
