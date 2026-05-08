@@ -309,7 +309,7 @@ export default function ChemSim() {
             <div style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-[#4fc3f7] text-xl sm:text-2xl tracking-widest shrink-0">CHEM SIM</div>
             <div className="text-[10px] text-[#4a6a8a] leading-tight" style={{ fontFamily: 'IBM Plex Mono, monospace' }}>
               Based on{' '}
-              <a href="https://chorasimilarity.wordpress.com/chemlambda-v2/" target="_blank" rel="noopener noreferrer" className="text-[#4fc3f7] hover:underline">Chemlambda</a>
+              <a href="https://chemlambda.github.io/" target="_blank" rel="noopener noreferrer" className="text-[#4fc3f7] hover:underline">Chemlambda</a>
               {' '}by M. Buliga (2013–)
             </div>
           </div>
