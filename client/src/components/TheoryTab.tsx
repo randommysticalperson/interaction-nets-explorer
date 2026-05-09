@@ -410,9 +410,73 @@ const SECTIONS: Section[] = [
         ],
         mathCols: [],
       },
-
-
-
+    ],
+  },
+  {
+    id: 'greens-function',
+    label: '\u00a710',
+    title: "Green's Function Theory",
+    color: '#6a1b9a',
+    content: [
+      {
+        type: 'quote' as const,
+        text: '\u683c\u6797\u51fd\u6570\u65b9\u6cd5\u662f\u51dd\u805a\u6001\u7269\u7406\u4e2d\u5e38\u7528\u7684\u65b9\u6cd5\uff0c\u800c\u4e14\u662f\u4e00\u4e2a\u5f3a\u6709\u529b\u7684\u5de5\u5177\u3002 (The Green\u2019s function method is a commonly used and powerful tool in condensed matter physics.)',
+        attribution: '\u738b\u6000\u7389, \u300a\u51dd\u805a\u6001\u7269\u7406\u7684\u683c\u6797\u51fd\u6570\u7406\u8bba\u300b, \u79d1\u5b66\u51fa\u7248\u793e, 2008',
+      },
+      {
+        type: 'prose' as const,
+        text: "The Green's function G(x,x') of a differential operator L satisfies L\u202fG(x,x') = \u03b4(x\u2212x'). In condensed matter physics, the single-particle retarded Green's function G\u1d3f(k,\u03c9) = 1/(\u03c9 \u2212 \u03b5_k \u2212 \u03a3\u1d3f(k,\u03c9)) encodes the full spectral weight of quasiparticles. Its poles give excitation energies; the imaginary part of the self-energy \u03a3 gives the inverse quasiparticle lifetime. The spectral function A(k,\u03c9) = \u22122\u202fIm\u202fG\u1d3f(k,\u03c9) is directly measurable by ARPES.",
+      },
+      {
+        type: 'table' as const,
+        headers: ['Type', 'Symbol', 'Domain', 'Use'],
+        rows: [
+          { cells: ['Retarded', 'G\u1d3f(k,\u03c9)', 'Real \u03c9 + i0\u207a', 'Spectral function, linear response'], tryTerm: null },
+          { cells: ['Advanced', 'G\u1d2c(k,\u03c9)', 'Real \u03c9 \u2212 i0\u207a', 'Conjugate of retarded'], tryTerm: null },
+          { cells: ['Matsubara', 'G(k, i\u03c9_n)', 'Discrete imaginary freq.', 'Finite temperature T > 0'], tryTerm: null },
+          { cells: ['Keldysh (non-equilibrium)', 'G\u02e4, G\u02e3', 'Keldysh contour', 'Transport, driven systems'], tryTerm: null },
+          { cells: ['Time-ordered', 'G\u1d40(k,t)', 'Real time', 'Zero-temperature perturbation theory'], tryTerm: null },
+        ],
+        mathCols: [],
+      },
+      {
+        type: 'prose' as const,
+        text: 'The Dyson equation G = G\u2080 + G\u2080\u03a3G is the self-consistency equation of many-body theory. It is structurally identical to the fixed-point equation x = f(x): G appears on both sides, and the solution is the fixed point of the map G \u21a6 G\u2080 + G\u2080\u03a3G. Iterating this map is precisely x_{n+1} = f(x_n) from the Fixed Point tab. The self-energy \u03a3(k,\u03c9) encodes all interaction effects \u2014 from Hartree\u2013Fock exchange to ring diagrams (RPA) to the full GW approximation.',
+      },
+      {
+        type: 'table' as const,
+        headers: ['Approximation', 'Self-energy \u03a3', 'Application'],
+        rows: [
+          { cells: ['Hartree\u2013Fock', 'First-order exchange diagram', 'Weakly interacting electrons'], tryTerm: null },
+          { cells: ['RPA (Random Phase)', 'Ring diagram summation', 'Plasmons, dielectric screening'], tryTerm: null },
+          { cells: ['GW', '\u03a3 = iGW (screened Coulomb)', 'Band gaps in semiconductors'], tryTerm: null },
+          { cells: ['Equation of Motion', 'Truncate hierarchy at nth order', 'Hubbard model, magnetism'], tryTerm: null },
+          { cells: ['Nambu (BCS)', '2\u00d72 matrix propagator', 'Superconducting gap equation'], tryTerm: null },
+          { cells: ['Keldysh', 'Non-equilibrium contour', 'Mesoscopic transport, TMR effect'], tryTerm: null },
+        ],
+        mathCols: [],
+      },
+      {
+        type: 'table' as const,
+        headers: ['QFT / Condensed Matter', 'Lambda Calculus / Interaction Nets'],
+        rows: [
+          { cells: ['Dressed propagator G', 'Fixed point Y\u202ff'], tryTerm: null },
+          { cells: ['Bare propagator G\u2080', 'Identity / base case'], tryTerm: null },
+          { cells: ['Self-energy \u03a3', 'Recursive body f'], tryTerm: null },
+          { cells: ['Dyson equation G = G\u2080 + G\u2080\u03a3G', 'Fixed point Y\u202ff = f(Y\u202ff)'], tryTerm: null },
+          { cells: ['Feynman diagram', 'Interaction net graph'], tryTerm: null },
+          { cells: ['Perturbative expansion', 'Sequence of \u03b2-rewrite steps'], tryTerm: null },
+          { cells: ['Vertex (interaction point)', 'Active pair (principal\u2013principal)'], tryTerm: null },
+          { cells: ['Propagator line', 'Wire between ports'], tryTerm: null },
+          { cells: ['Loop / self-energy diagram', 'Duplicator \u03b4 creating a cycle'], tryTerm: null },
+          { cells: ['Renormalisation (series converges)', 'Normal form (no active pairs remain)'], tryTerm: null },
+        ],
+        mathCols: [],
+      },
+      {
+        type: 'prose' as const,
+        text: 'Source: \u738b\u6000\u7389 (Wang Huaiyu), \u300a\u51dd\u805a\u6001\u7269\u7406\u7684\u683c\u6797\u51fd\u6570\u7406\u8bba\u300b (Green\u2019s Function Theory in Condensed Matter Physics), \u79d1\u5b66\u51fa\u7248\u793e (Science Press), Beijing, 2008. ISBN 978-7-03-020091-4. 503 pages. Covers single-particle Green\u2019s functions, many-body perturbation theory (Feynman diagrams and equation-of-motion method), and applications to magnetism (Heisenberg model), superconductivity (BCS/Nambu), and mesoscopic transport (Keldysh/Landauer).',
+      },
     ],
   },
 ];
