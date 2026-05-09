@@ -13,6 +13,7 @@ import ChemSim from '@/components/ChemSim';
 import BenchmarkTab from '@/components/BenchmarkTab';
 import TheoryTab from '@/components/TheoryTab';
 import FixedPointTab from '@/components/FixedPointTab';
+import SpectralFunctionTab from '@/components/SpectralFunctionTab';
 
 const TABS = [
   {
@@ -50,6 +51,13 @@ const TABS = [
     description: 'Animate x_{n+1}=f(x_n) cobweb iteration for any f',
     color: '#2e7d32',
   },
+  {
+    id: 'spectral',
+    label: '05 — SPECTRAL',
+    mobileLabel: 'A(k,ω)',
+    description: 'Interactive spectral function A(k,ω) visualizer — Lehmann, Dyson, GW',
+    color: '#6a1b9a',
+  },
 ];
 
 function HomeInner() {
@@ -59,7 +67,7 @@ function HomeInner() {
   useEffect(() => {
     const onHashChange = () => {
       const hash = window.location.hash.replace('#', '');
-      if (['theory', 'visualizer', 'chemsim', 'benchmark', 'fixedpoint'].includes(hash)) {
+      if (['theory', 'visualizer', 'chemsim', 'benchmark', 'fixedpoint', 'spectral'].includes(hash)) {
         setActiveTab(hash);
       }
     };
@@ -162,6 +170,7 @@ function HomeInner() {
         {activeTab === 'chemsim' && <ChemSim />}
         {activeTab === 'benchmark' && <BenchmarkTab />}
         {activeTab === 'fixedpoint' && <FixedPointTab />}
+        {activeTab === 'spectral' && <SpectralFunctionTab />}
       </main>
 
       {/* ── Footer ── */}

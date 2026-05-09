@@ -328,7 +328,7 @@ const SECTIONS: Section[] = [
       },
       {
         type: 'prose' as const,
-        text: 'The Fanout Tree in the interaction net diagram of the Y combinator plays the same role as the self-energy loop in a Feynman diagram: it is the structure that enables self-interaction. The blue Syntactic Tree corresponds to the bare propagator G₀, and the red Lambda Node is the vertex where the interaction fires — the active pair that triggers the next rewrite step.',
+        text: 'The Fanout Tree in the interaction net diagram of the Y combinator plays the same role as the self-energy loop in a Feynman diagram: it is the structure that enables self-interaction. The blue Syntactic Tree corresponds to the bare propagator G₀, and the red Lambda Node is the vertex where the interaction fires — the active pair that triggers the next rewrite step. See §10 (Green’s Function Theory) for the full condensed matter formalism, and the “05 — SPECTRAL” tab for an interactive A(k,ω) visualizer grounded in Lehmann (1954), Dyson (1949), and Hedin (1965).',
       },
       {
         type: 'table' as const,
@@ -472,6 +472,10 @@ const SECTIONS: Section[] = [
           { cells: ['Renormalisation (series converges)', 'Normal form (no active pairs remain)'], tryTerm: null },
         ],
         mathCols: [],
+      },
+      {
+        type: 'prose' as const,
+        text: 'See also \u00a78 (Dyson Equation & Fixed Points) for the abstract fixed-point analogy, and the \u201c05 \u2014 SPECTRAL\u201d tab for an interactive A(k,\u03c9) plot with tunable self-energy \u03a3. The quasiparticle residue Z = (1 \u2212 \u2202Re\u03a3/\u2202\u03c9)\u207b\u00b9 and lifetime \u03c4 = \u210f/(2|Im\u03a3|) are computed live from Lehmann (1954) and Mahan (2000).',
       },
       {
         type: 'prose' as const,
